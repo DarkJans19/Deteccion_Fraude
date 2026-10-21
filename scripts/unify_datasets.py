@@ -62,7 +62,7 @@ def load_datasets(data_dir, sms_path=None, mail_path=None):
         })
 
     if not records or any(not row["text"] for row in records):
-        raise ValueError("Los datasets no pueden estar vacíos ni contener textos vacíos")
+        raise ValueError("Los datasets no pueden estar vacios ni contener textos vacios")
     return records
 
 
@@ -96,7 +96,7 @@ def split_records(records, ratios=(0.8, 0.1, 0.1), seed=42):
     for rows in partitions.values():
         rng.shuffle(rows)
     if any(not rows for rows in partitions.values()):
-        raise ValueError("No hay suficientes grupos para generar tres particiones no vacías")
+        raise ValueError("No hay suficientes grupos para generar tres particiones no vacias")
     return partitions
 
 
@@ -113,30 +113,17 @@ def write_partitions(partitions, output_dir):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data-dir", type=Path, default=ROOT / "data_original")
-    parser.add_argument("--translated-dir", type=Path, default=ROOT / "data")
     parser.add_argument("--output-dir", type=Path, default=ROOT / "dataset")
-    parser.add_argument("--sms-file", type=Path, help="CSV de SMS alternativo, por ejemplo data/Dataset_5971_es.csv")
+    parser.add_argument("--sms-file", type=Path, help="CSV de SMS alternativo")
     parser.add_argument("--mail-file", type=Path, help="CSV de correos alternativo")
-    parser.add_argument("--original-language", action="store_true", help="Usar explícitamente los originales sin traducir")
     parser.add_argument("--train-ratio", type=float, default=0.8)
     parser.add_argument("--test-ratio", type=float, default=0.1)
     parser.add_argument("--validation-ratio", type=float, default=0.1)
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
     try:
-        sms_path, mail_path = args.sms_file, args.mail_file
-        if not args.original_language:
-            sms_path = sms_path or args.data_dir / "Dataset_5971.csv"
-            mail_path = mail_path or args.translated_dir / "Spaphish_es.csv"
-            if not sms_path.is_file() or not mail_path.is_file():
-                raise ValueError("Faltan las versiones en español. Ejecuta primero scripts/prepare_spanish_dataset.py")
-            if args.sms_file is None:
-                backup = args.data_dir / "backups/Dataset_5971_en.csv"
-                if not backup.is_file() or sms_path.read_bytes() == backup.read_bytes():
-                    raise ValueError("Dataset_5971.csv aún no fue reemplazado por su traducción al español")
-        elif sms_path is None:
-            backup = args.data_dir / "backups/Dataset_5971_en.csv"
-            sms_path = backup if backup.is_file() else args.data_dir / "Dataset_5971.csv"
+        sms_path = args.sms_file or args.data_dir / "Dataset_5971.csv"
+        mail_path = args.mail_file or args.data_dir / "Spaphish dataset - DiB.csv"
         records = load_datasets(args.data_dir, sms_path, mail_path)
         partitions = split_records(
             records, (args.train_ratio, args.test_ratio, args.validation_ratio), args.seed
