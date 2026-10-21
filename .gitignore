@@ -205,6 +205,10 @@ cython_debug/
 # Temporary file for partial code execution
 tempCodeRunnerFile.py
 
+# Datos derivados y modelos de la seccion de URLs
+dataset/urls/
+artifacts/
+
 # Ruff stuff:
 .ruff_cache/
 
