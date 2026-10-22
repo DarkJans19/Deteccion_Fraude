@@ -1,0 +1,191 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme inline {
+  --font-sans: "Inter", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--card);
+  --color-popover-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-brand: var(--brand);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-warning: #681a23;
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+:root {
+  color-scheme: dark;
+  --background: #10141e;
+  --foreground: #b8c3d3;
+  --card: #191f2d;
+  --card-foreground: #b8c3d3;
+  --primary: #681a23;
+  --brand: #681a23;
+  --primary-foreground: #d5dce8;
+  --secondary: #252e40;
+  --secondary-foreground: #aeb9ca;
+  --muted: #222a3b;
+  --muted-foreground: #8795aa;
+  --accent: #35191f;
+  --accent-foreground: #8f1023;
+  --destructive: #c63f4f;
+  --border: #364157;
+  --input: #46526a;
+  --ring: #b9414b;
+  --radius: 0.7rem;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply m-0 bg-background font-sans text-foreground;
+  }
+  button,
+  a,
+  input,
+  textarea,
+  select {
+    -webkit-tap-highlight-color: transparent;
+  }
+  button:not(:disabled),
+  select {
+    cursor: pointer;
+  }
+  ::selection {
+    background: #bfdbfe;
+    color: #172033;
+  }
+}
+
+.leaflet-container {
+  background: #0b1220;
+  font-family: var(--font-sans);
+}
+.leaflet-control-attribution {
+  max-width: 85%;
+  font-size: 9px;
+}
+.leaflet-popup-content {
+  margin: 14px;
+}
+.leaflet-popup-content-wrapper {
+  border-radius: 10px;
+  background: var(--card);
+  color: var(--card-foreground);
+}
+.leaflet-popup-tip {
+  background: var(--card);
+}
+.leaflet-control-zoom a,
+.leaflet-control-attribution {
+  background: var(--card);
+  color: var(--muted-foreground);
+}
+.leaflet-control-attribution a {
+  color: var(--accent-foreground);
+}
+.leaflet-control-zoom {
+  border: 1px solid var(--border) !important;
+  overflow: hidden;
+}
+.locality-label {
+  text-align: center;
+  pointer-events: none;
+}
+.locality-label span {
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+  color: #c4cedd;
+  text-shadow:
+  0 1px 2px #0b1220,
+  0 -1px 2px #0b1220,
+  1px 0 2px #0b1220,
+  -1px 0 2px #0b1220;
+}
+.report-pin {
+  display: flex;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  border: 3px solid #b8c3d3;
+  border-radius: 50%;
+  background: #b9414b;
+  color: #d5dce8;
+  font-size: 11px;
+  font-weight: 700;
+  box-shadow: 0 1px 6px #080b1280;
+}
+.report-pin.selected {
+  background: #e06a75;
+  box-shadow:
+    0 0 0 5px #c63f4f50,
+    0 2px 5px #080b1280;
+}
+.report-popup {
+  font-size: 12px;
+}
+.report-popup .popup-location {
+  color: #aab6c8;
+  font-size: 10px;
+  margin: 0 0 8px;
+}
+.popup-report + .popup-report {
+  border-top: 1px solid #364157;
+  padding-top: 10px;
+  margin-top: 10px;
+}
+.popup-report button {
+  text-align: left;
+  font-weight: 600;
+  line-height: 1.5;
+  color: #d49aa3;
+}
+.popup-report p {
+  color: #8795aa;
+  font-size: 10px;
+  margin: 5px 0;
+}
+.popup-report code {
+  display: block;
+  word-break: break-all;
+  font-size: 10px;
+  line-height: 1.6;
+  background: #111722;
+  color: #566174;
+  padding: 7px;
+  border-radius: 5px;
+  user-select: all;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
