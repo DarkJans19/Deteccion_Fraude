@@ -23,6 +23,14 @@ class IntegrityError(Exception):
     pass
 
 
+class StorageError(Exception):
+    """Error de persistencia cuyo mensaje no contiene credenciales."""
+
+
+class ConflictError(Exception):
+    pass
+
+
 def canonical(value):
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False)
 
@@ -193,12 +201,14 @@ class ReportServer(ThreadingHTTPServer):
     daemon_threads = True
 
     def __init__(self, address, hasher, detector=None, *, static_dir=STATIC,
-                 frontend_origins=("http://127.0.0.1:5173", "http://localhost:5173")):
+                 frontend_origins=("http://127.0.0.1:5173", "http://localhost:5173"),
+                 allowed_hosts=()):
         super().__init__(address, Handler)
         self.hasher = hasher
         self.detector = detector
         self.static_dir = Path(static_dir).resolve()
         self.frontend_origins = frozenset(frontend_origins)
+        self.allowed_hosts = frozenset(allowed_hosts)
         self.csrf = secrets.token_urlsafe(32)
 
 
@@ -230,7 +240,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def allowed_host(self):
         port = self.server.server_port
-        return self.headers.get("Host") in (f"127.0.0.1:{port}", f"localhost:{port}")
+        return self.headers.get("Host") in {f"127.0.0.1:{port}", f"localhost:{port}",
+                                            *self.server.allowed_hosts}
 
     def do_GET(self):
         self.dispatch(False)
@@ -263,6 +274,10 @@ class Handler(BaseHTTPRequestHandler):
             return self.get(urlsplit(self.path).path)
         except IntegrityError as error:
             self.respond(409, {"error": str(error), "integrity": False})
+        except ConflictError as error:
+            self.respond(409, {"error": str(error)})
+        except StorageError:
+            self.respond(503, {"error": "No se pudo acceder a MongoDB; vuelve a intentar"})
         except KeyError:
             self.respond(404, {"error": "Reporte no encontrado"})
         except (ValueError, TypeError, UnicodeError) as error:
@@ -273,6 +288,10 @@ class Handler(BaseHTTPRequestHandler):
             self.respond(503, {"error": "No se pudo leer el recurso local"})
 
     def get(self, path):
+        if path == "/api/health":
+            if hasattr(self.server.hasher, "health"):
+                self.server.hasher.health()
+            return self.respond(200, {"status": "ok"})
         if path == "/api/session":
             return self.respond(200, {"csrf": self.server.csrf, "model_available": self.server.detector is not None})
         if path == "/api/reports":
@@ -282,14 +301,17 @@ class Handler(BaseHTTPRequestHandler):
             return self.respond(200, self.server.hasher.get_report(parts[2]))
         if len(parts) == 4 and parts[:2] == ["api", "reports"] and parts[3] == "export":
             result = self.server.hasher.export(parts[2])
-            return self.respond(200, result, download=f"reporte-{result['report']['id']}.json")
+            return self.respond(200, result, download=f"reporte-{parts[2]}.json")
+        if (len(parts) == 4 and parts[:2] == ["api", "reports"] and parts[3] == "tracking"
+                and hasattr(self.server.hasher, "get_tracking")):
+            return self.respond(200, self.server.hasher.get_tracking(parts[2]))
         if path in ("/", "/dashboard", "/dashboard/", "/dashboard/trazabilidad"):
             index = self.server.static_dir / "index.html"
             if not index.is_file():
                 return self.respond(503, {"error": "Compila el dashboard: cd frontend/dashboard && npm install && npm run build. "
                                                   "Para desarrollo, usa npm run dev en http://127.0.0.1:5173."})
             return self.respond(200, index.read_bytes(), "text/html; charset=utf-8")
-        if path.startswith(("/assets/", "/geo/")) or path == "/favicon.svg":
+        if path.startswith(("/assets/", "/geo/")) or path in ("/favicon.svg", "/antifraudi-inador-logo.png"):
             asset = (self.server.static_dir / unquote(path).lstrip("/")).resolve()
             if asset.is_relative_to(self.server.static_dir) and asset.is_file():
                 mime = {".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml",
@@ -299,7 +321,15 @@ class Handler(BaseHTTPRequestHandler):
 
     def post(self, path, data):
         hasher = self.server.hasher
+        parts = path.strip("/").split("/")
+        if (len(parts) == 4 and parts[:2] == ["api", "reports"] and parts[3] == "tracking"
+                and hasattr(hasher, "add_tracking")):
+            if set(data) != {"status", "note"}:
+                raise ValueError("El seguimiento requiere únicamente status y note")
+            return self.respond(201, hasher.add_tracking(parts[2], data["status"], data["note"]))
         if path == "/api/reports":
+            if hasattr(hasher, "create_document"):
+                return self.respond(201, hasher.create_document(data))
             if set(data) - {"title", "text", "source", "source_ref", "geolocation"}:
                 raise ValueError("Campos desconocidos: el reporte es anónimo y no admite datos de usuario")
             content = hasher.validate_content(data.get("title"), data.get("text"), data.get("source"),

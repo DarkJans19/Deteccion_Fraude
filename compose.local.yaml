@@ -1,0 +1,44 @@
+# Alternativa a Atlas, independiente de compose.yaml y de sus credenciales.
+services:
+  app:
+    build: .
+    image: deteccion-fraude:local
+    init: true
+    restart: unless-stopped
+    environment:
+      MONGODB_URI: mongodb://mongodb:27017/fraud_detection?authSource=admin
+      MONGODB_USERNAME: ${LOCAL_MONGO_USERNAME:-fraud_app}
+      MONGODB_PASSWORD: ${LOCAL_MONGO_PASSWORD:?Define LOCAL_MONGO_PASSWORD en .env o en tu entorno}
+      MONGODB_DATABASE: fraud_detection
+      ALLOWED_HOSTS: localhost:${APP_PORT:-8765},127.0.0.1:${APP_PORT:-8765},localhost:8765,127.0.0.1:8765
+      FRONTEND_ORIGINS: http://localhost:${APP_PORT:-8765},http://127.0.0.1:${APP_PORT:-8765}
+    ports:
+      - "127.0.0.1:${APP_PORT:-8765}:8765"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+  mongodb:
+    image: mongo:7.0
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${LOCAL_MONGO_USERNAME:-fraud_app}
+      MONGO_INITDB_ROOT_PASSWORD: ${LOCAL_MONGO_PASSWORD:?Define LOCAL_MONGO_PASSWORD en .env o en tu entorno}
+      MONGO_INITDB_DATABASE: fraud_detection
+    volumes:
+      - mongo_data:/data/db
+      - ./backend/mongo:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "quit(db.adminCommand({ping: 1}).ok ? 0 : 1)"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+volumes:
+  mongo_data:

@@ -1,6 +1,8 @@
 # Dashboard de Bogotá
 
-Vista sencilla de consulta: **lista de reportes con el SHA-256 completo, mapa Leaflet y estadísticas por las 20 localidades de Bogotá**. Implementada con React, TypeScript, Tailwind y componentes shadcn/ui. No tiene formularios de registro ni datos simulados en la aplicación.
+**Lista de reportes con el SHA-256 completo, mapa Leaflet y estadísticas por las 20 localidades de Bogotá**. Implementada con React, TypeScript, Tailwind y componentes shadcn/ui. Al usar MongoDB permite consultar y agregar seguimiento por caso. No tiene formularios de registro ni datos simulados en la aplicación.
+
+Para Docker, MongoDB Atlas, credenciales, estructura BSON y API de seguimiento, consulta [la guía del proyecto](../../README.md). El comando `hasher.py` de esta guía conserva el modo local anterior con SQLite.
 
 ## Ejecutar
 
@@ -41,6 +43,6 @@ npm.cmd run build
 npm.cmd test
 ```
 
-Playwright usa Microsoft Edge instalado en Windows. Para Chromium, elimina `channel: "msedge"` en `playwright.config.ts` y ejecuta `npx playwright install chromium`. Las pruebas usan Python y el puerto 18765; los datos ficticios se crean en una base temporal y las capturas quedan en `test-results/` (excluido de Git).
+Playwright usa Microsoft Edge en Windows y Chromium en Linux/macOS. Instala este último con `npx playwright install chromium`. Las pruebas usan Python y el puerto 18765; los datos ficticios se crean en una base temporal y las capturas quedan en `test-results/` (excluido de Git).
 
 Los componentes shadcn/ui usados están en `src/components/ui/`. El mapa usa [Leaflet](https://leafletjs.com/reference.html), la asignación geográfica está en `src/lib/geography.ts` y la API del backend en `src/lib/reports.ts`.
