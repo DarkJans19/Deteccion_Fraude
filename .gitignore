@@ -215,6 +215,9 @@ artifacts/
 # PyPI configuration file
 .pypirc
 
+# Evidencias locales fuera del control de versiones.
+runtime/
+
 # Marimo
 marimo/_static/
 marimo/_lsp/

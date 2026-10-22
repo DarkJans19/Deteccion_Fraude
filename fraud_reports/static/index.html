@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Consulta local de reportes de fraude sellados al registrarse.">
+  <title>Centinela · Reportes de fraude</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <header class="topbar"><a class="brand" href="/" aria-label="Centinela, inicio"><span class="brand-icon">C</span> CENTINELA</a><span class="local"><span class="dot"></span> Entorno local</span></header>
+  <main>
+    <section class="heading"><div><p class="eyebrow">REGISTRO DE EVIDENCIAS</p><h1>Reportes de fraude</h1><p class="subtitle">Un reporte, un registro y su hash al momento de guardarlo.</p></div><button id="new-report" class="primary">＋ Nuevo reporte</button></section>
+    <div id="message" role="status" aria-live="polite" hidden></div>
+    <section class="health" aria-label="Estado del sistema"><div><span class="dot"></span><strong id="load-status">Cargando reportes…</strong></div><div class="health-actions"><span id="model-status" class="badge">LLM sin conectar</span><button id="refresh" class="text-button">↻ Actualizar</button></div></section>
+    <section class="metrics" aria-label="Resumen de todos los reportes">
+      <article><p>Total de reportes</p><strong id="total">—</strong><span>Registros guardados</span></article>
+      <article><p>Positivos para fraude</p><strong id="positive">—</strong><span>Según el modelo</span></article>
+      <article><p>Negativos para fraude</p><strong id="negative">—</strong><span>Según el modelo</span></article>
+      <article><p>Sin veredicto</p><strong id="unknown">—</strong><span>Sin análisis o resultado incierto</span></article>
+    </section>
+    <div class="workspace">
+      <section class="panel reports"><div class="panel-title"><h2>Reportes registrados</h2><span id="result-count" class="muted"></span></div>
+        <div class="filters">
+          <label class="search"><span class="sr-only">Buscar reportes</span><input id="search" type="search" placeholder="Título, usuario, referencia o ID…"></label>
+          <label><span class="sr-only">Filtrar por resultado</span><select id="label-filter"><option value="">Todos los resultados</option><option value="fraude">Positivo para fraude</option><option value="no_fraude">Negativo para fraude</option><option value="incierto">Incierto</option><option value="sin_analisis">Sin análisis</option></select></label>
+        </div>
+        <div class="table-wrap"><table><thead><tr><th>Reporte / usuario</th><th>Resultado del modelo</th><th>Fecha y hora</th></tr></thead><tbody id="rows"></tbody></table></div>
+        <div id="empty" class="empty" hidden></div>
+      </section>
+      <aside class="panel detail" aria-label="Detalle del reporte"><div id="detail-empty" class="detail-placeholder"><span class="empty-icon">⌕</span><h2>Consulta un reporte</h2><p>Selecciona un registro para ver su usuario, contenido, resultado y hash.</p></div><div id="detail-content" hidden></div></aside>
+    </div>
+    <footer>SHA-256 · Un único registro por reporte · Fechas en tu zona horaria<span>Los hashes no cifran el contenido.</span></footer>
+  </main>
+  <dialog id="create-dialog"><form id="create-form">
+    <div class="dialog-heading"><div><p class="eyebrow">NUEVA EVIDENCIA</p><h2>Registrar reporte</h2></div><button type="button" id="close-dialog" class="icon-button" aria-label="Cerrar">×</button></div>
+    <p class="muted">El reporte se guarda una sola vez, con su fecha, resultado disponible y hash.</p>
+    <label>Usuario que reporta<input name="reported_by" required maxlength="120" autocomplete="username" placeholder="Nombre o identificador del usuario" aria-describedby="reporter-help"></label>
+    <p class="muted" id="reporter-help">Nombre declarado por quien registra; esta vista local aún no verifica la identidad mediante inicio de sesión.</p>
+    <label>Título<input name="title" required maxlength="160" placeholder="Ej. SMS con solicitud de credenciales"></label>
+    <div class="form-row"><label>Origen<select name="source"><option value="sms">SMS</option><option value="correo">Correo</option><option value="otro">Otro</option></select></label><label>Referencia de origen <span class="muted">(opcional)</span><input name="source_ref" maxlength="500" placeholder="Identificador del mensaje o caso"></label></div>
+    <label>Contenido original<textarea name="text" required maxlength="50000" rows="7" placeholder="Pega el mensaje que quieres registrar…"></textarea></label>
+    <p id="creation-note" class="muted">El reporte quedará sin análisis si el LLM no está conectado. No se modifica después de guardarlo.</p>
+    <p id="create-error" class="error" role="alert"></p><button class="primary" type="submit">Registrar y generar hash</button>
+  </form></dialog>
+</body>
+</html>
