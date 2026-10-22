@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timezone
+from functools import lru_cache
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -50,6 +51,35 @@ def _metrics(labels, probabilities, threshold: float) -> dict[str, float | int]:
         result["false_positive"] / negatives if negatives else 0.0
     )
     return result
+
+
+@lru_cache(maxsize=4)
+def _load_prediction_artifacts(model_dir_text: str):
+    """Carga una sola vez los modelos usados por procesos web de larga vida."""
+
+    _, tf = _dependencies()
+    model_dir = Path(model_dir_text)
+    with (model_dir / "metadata.json").open(encoding="utf-8") as source:
+        autoencoder_metadata = json.load(source)
+    with (model_dir / "classifier_metadata.json").open(encoding="utf-8") as source:
+        classifier_metadata = json.load(source)
+    if autoencoder_metadata.get("feature_names") != list(FEATURE_NAMES):
+        raise ValueError("El modelo no coincide con esta version de los rasgos")
+
+    trusted_hosts: frozenset[str] = frozenset()
+    trusted_reference_path = model_dir / "trusted_reference.json"
+    if trusted_reference_path.is_file():
+        with trusted_reference_path.open(encoding="utf-8") as source:
+            trusted_reference = json.load(source)
+        trusted_hosts = frozenset(trusted_reference.get("hosts", []))
+
+    return (
+        autoencoder_metadata,
+        classifier_metadata,
+        tf.keras.models.load_model(model_dir / "model.keras"),
+        tf.keras.models.load_model(model_dir / "classifier.keras"),
+        trusted_hosts,
+    )
 
 
 def build_classifier(input_size: int, seed: int):
@@ -187,37 +217,27 @@ def train_classifier(
 
 
 def predict(url: str, model_dir: Path) -> dict[str, object]:
-    np, tf = _dependencies()
+    np, _ = _dependencies()
     normalized = normalize_url(url)
     if normalized is None:
         raise ValueError("La URL no es HTTP(S) valida o supera 2048 caracteres")
 
-    with (model_dir / "metadata.json").open(encoding="utf-8") as source:
-        autoencoder_metadata = json.load(source)
-    with (model_dir / "classifier_metadata.json").open(encoding="utf-8") as source:
-        classifier_metadata = json.load(source)
-    if autoencoder_metadata.get("feature_names") != list(FEATURE_NAMES):
-        raise ValueError("El modelo no coincide con esta version de los rasgos")
-
-    trusted_reference_path = model_dir / "trusted_reference.json"
-    official_host_match = False
-    official_base_match = False
-    if trusted_reference_path.is_file():
-        with trusted_reference_path.open(encoding="utf-8") as source:
-            trusted_reference = json.load(source)
-        trusted_hosts = set(trusted_reference.get("hosts", []))
-        parsed = urlsplit(normalized)
-        official_host_match = strip_www(parsed.hostname or "") in trusted_hosts
-        official_base_match = bool(
-            official_host_match
-            and parsed.path in {"", "/"}
-            and not parsed.query
-            and not parsed.fragment
-            and parsed.username is None
-        )
-
-    autoencoder = tf.keras.models.load_model(model_dir / "model.keras")
-    classifier = tf.keras.models.load_model(model_dir / "classifier.keras")
+    (
+        autoencoder_metadata,
+        classifier_metadata,
+        autoencoder,
+        classifier,
+        trusted_hosts,
+    ) = _load_prediction_artifacts(str(model_dir.resolve()))
+    parsed = urlsplit(normalized)
+    official_host_match = strip_www(parsed.hostname or "") in trusted_hosts
+    official_base_match = bool(
+        official_host_match
+        and parsed.path in {"", "/"}
+        and not parsed.query
+        and not parsed.fragment
+        and parsed.username is None
+    )
     raw = np.asarray([extract_features(normalized)], dtype="float32")
     hybrid, anomaly = _hybrid_matrix(
         raw,

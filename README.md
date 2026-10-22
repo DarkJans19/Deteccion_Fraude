@@ -83,3 +83,17 @@ nivel de riesgo y puntaje de anomalia. `www` se ignora en la representacion
 aprendida, por lo que `google.com` y `www.google.com` producen los mismos rasgos.
 El resultado sigue siendo una senal y debe combinarse con DNS/TLS y analisis del
 contenido antes de bloquear una URL en produccion.
+
+## Lector de codigos QR
+
+La aplicacion de `analisis_qr` permite leer un QR con la camara o desde una
+imagen, comprobar su URL y mostrar el destino de sus redirecciones sin abrirlo
+automaticamente. Reutiliza el modelo y la integracion con Safe Browsing
+descritos arriba.
+
+```powershell
+.venv\Scripts\python.exe -m analisis_qr.server
+```
+
+Consulta [`analisis_qr/README.md`](analisis_qr/README.md) para conocer las
+opciones y las limitaciones de seguridad.
