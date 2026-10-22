@@ -1,0 +1,23 @@
+services:
+  app:
+    build: .
+    image: deteccion-fraude:local
+    init: true
+    restart: unless-stopped
+    env_file:
+      - path: ${MONGODB_ENV_FILE:-./.env}
+        format: raw
+    environment:
+      MONGODB_ENV_RAW: "1"
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost:${APP_PORT:-8765},127.0.0.1:${APP_PORT:-8765},localhost:8765,127.0.0.1:8765}
+      FRONTEND_ORIGINS: ${FRONTEND_ORIGINS:-http://localhost:${APP_PORT:-8765},http://127.0.0.1:${APP_PORT:-8765}}
+    ports:
+      - "127.0.0.1:${APP_PORT:-8765}:8765"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 20s

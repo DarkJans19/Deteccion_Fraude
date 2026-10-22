@@ -1,0 +1,17 @@
+.git
+.agents
+.aws
+.codex
+.venv
+**/__pycache__
+**/node_modules
+**/dist
+**/test-results
+**/playwright-report
+**/.env
+**/.env.*
+**/*.env
+backend/runtime
+backend/data_original
+backend/dataset
+**/*.sqlite3*

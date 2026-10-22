@@ -1,6 +1,2 @@
---extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
-
-fastapi
-uvicorn[standard]
-pydantic
-llama-cpp-python
+pymongo==4.19.0
+python-dotenv==1.2.4
