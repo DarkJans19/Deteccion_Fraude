@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { ReportTracking } from "@/components/report-tracking";
 import {
   Select,
   SelectContent,
@@ -27,7 +28,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { api, date, type Report } from "@/lib/reports";
+import {
+  api,
+  date,
+  normalizeReport,
+  type MongoReport,
+  type Report,
+} from "@/lib/reports";
 import {
   countLocalities,
   loadGeography,
@@ -65,11 +72,14 @@ export default function App() {
     setLoading(true);
     setError("");
     try {
-      const data = await api<{ reports: Report[] }>("/api/reports");
+      const data = await api<{ reports: (Report | MongoReport)[] }>(
+        "/api/reports",
+      );
       if (current !== requestId.current) return;
-      setReports(data.reports);
+      const normalized = data.reports.map(normalizeReport);
+      setReports(normalized);
       setSelectedId((id) =>
-        data.reports.some((report) => report.id === id) ? id : null,
+        normalized.some((report) => report.id === id) ? id : null,
       );
     } catch (failure) {
       if (current !== requestId.current) return;
@@ -145,6 +155,7 @@ export default function App() {
     [geography, counts],
   );
   const ready = geography && !loading && !error;
+  const selectedReport = reports.find((report) => report.id === selectedId);
 
   const selectLocality = useCallback((code: string) => {
     setLocality(code);
@@ -433,6 +444,9 @@ export default function App() {
             )}
           </Card>
         </div>
+        {selectedReport?.storage === "mongodb" && (
+          <ReportTracking key={selectedReport.id} report={selectedReport} />
+        )}
         <Card
           className="gap-4 p-5 shadow-none"
           aria-label="Estadísticas por localidad"

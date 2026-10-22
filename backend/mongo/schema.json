@@ -1,0 +1,40 @@
+{
+  "fraud_reports": {
+    "bsonType": "object",
+    "required": ["_id", "description", "messageContent", "date", "hashCode", "location"],
+    "additionalProperties": false,
+    "properties": {
+      "_id": { "bsonType": "objectId" },
+      "description": { "bsonType": "string", "minLength": 1, "maxLength": 2000 },
+      "messageContent": { "bsonType": "string", "minLength": 1, "maxLength": 50000 },
+      "date": { "bsonType": "date" },
+      "hashCode": { "bsonType": "string", "pattern": "^[a-fA-F0-9]{64}$" },
+      "location": {
+        "bsonType": "object",
+        "required": ["type", "coordinates"],
+        "additionalProperties": false,
+        "properties": {
+          "type": { "enum": ["Point"] },
+          "coordinates": {
+            "bsonType": "array", "minItems": 2, "maxItems": 2,
+            "items": { "bsonType": "number" }
+          }
+        }
+      }
+    }
+  },
+  "fraud_report_events": {
+    "bsonType": "object",
+    "required": ["_id", "reportId", "reportHashCode", "date", "status", "note", "hashCode"],
+    "additionalProperties": false,
+    "properties": {
+      "_id": { "bsonType": "objectId" },
+      "reportId": { "bsonType": "objectId" },
+      "reportHashCode": { "bsonType": "string", "pattern": "^[a-fA-F0-9]{64}$" },
+      "hashCode": { "bsonType": "string", "pattern": "^[a-fA-F0-9]{64}$" },
+      "date": { "bsonType": "date" },
+      "status": { "enum": ["en_revision", "confirmado", "descartado", "cerrado"] },
+      "note": { "bsonType": "string", "minLength": 1, "maxLength": 5000 }
+    }
+  }
+}
