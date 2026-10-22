@@ -6,6 +6,7 @@ import csv
 import json
 import os
 import random
+import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable
@@ -233,6 +234,9 @@ def train(
     with (output_dir / "metadata.json").open("w", encoding="utf-8") as target:
         json.dump(metadata, target, ensure_ascii=False, indent=2)
         target.write("\n")
+    trusted_reference = dataset_dir / "trusted_reference.json"
+    if trusted_reference.is_file():
+        shutil.copyfile(trusted_reference, output_dir / trusted_reference.name)
     return metadata
 
 

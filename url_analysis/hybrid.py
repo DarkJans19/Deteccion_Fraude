@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from .autoencoder import (
     _dependencies,
@@ -14,6 +15,7 @@ from .autoencoder import (
     reservoir_sample,
 )
 from .features import FEATURE_NAMES, LEXICAL_FEATURE_NAMES, extract_features
+from .domains import strip_www
 from .preprocessing import normalize_url
 
 
@@ -197,6 +199,23 @@ def predict(url: str, model_dir: Path) -> dict[str, object]:
     if autoencoder_metadata.get("feature_names") != list(FEATURE_NAMES):
         raise ValueError("El modelo no coincide con esta version de los rasgos")
 
+    trusted_reference_path = model_dir / "trusted_reference.json"
+    official_host_match = False
+    official_base_match = False
+    if trusted_reference_path.is_file():
+        with trusted_reference_path.open(encoding="utf-8") as source:
+            trusted_reference = json.load(source)
+        trusted_hosts = set(trusted_reference.get("hosts", []))
+        parsed = urlsplit(normalized)
+        official_host_match = strip_www(parsed.hostname or "") in trusted_hosts
+        official_base_match = bool(
+            official_host_match
+            and parsed.path in {"", "/"}
+            and not parsed.query
+            and not parsed.fragment
+            and parsed.username is None
+        )
+
     autoencoder = tf.keras.models.load_model(model_dir / "model.keras")
     classifier = tf.keras.models.load_model(model_dir / "classifier.keras")
     raw = np.asarray([extract_features(normalized)], dtype="float32")
@@ -230,5 +249,7 @@ def predict(url: str, model_dir: Path) -> dict[str, object]:
         "decision_threshold": decision_threshold,
         "review_threshold": review_threshold,
         "autoencoder_anomaly_score": float(anomaly[0]),
+        "superfinanciera_host_match": official_host_match,
+        "superfinanciera_base_url_match": official_base_match,
         "warning": "Es una estimacion estadistica; no demuestra que la pagina sea segura.",
     }

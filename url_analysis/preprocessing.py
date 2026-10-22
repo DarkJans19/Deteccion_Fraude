@@ -14,12 +14,13 @@ from pathlib import Path
 from typing import Iterable, Iterator, Sequence
 from urllib.parse import urlsplit, urlunsplit
 
-from .domains import registrable_domain
+from .domains import registrable_domain, strip_www
 
 
 LABEL_LEGITIMATE = 0
 LABEL_PHISHING = 1
 SPLIT_NAMES = ("train", "validation", "test")
+SUPERFINANCIERA_SOURCE = "Entidades__vigiladas_por_la_Superfinanciera_20261021.csv"
 
 
 @dataclass(frozen=True)
@@ -33,8 +34,10 @@ class UrlRecord:
 class SourceSpec:
     filename: str
     url_column: str
-    label_column: str
+    label_column: str | None
     label_mapping: dict[str, int]
+    fixed_label: int | None = None
+    allow_userinfo: bool = True
 
 
 DEFAULT_SOURCES = (
@@ -56,6 +59,17 @@ DEFAULT_SOURCES = (
         label_column="label",
         # Convencion original de PhiUSIIL: 1=legitima y 0=phishing.
         label_mapping={"1": LABEL_LEGITIMATE, "0": LABEL_PHISHING},
+    ),
+    SourceSpec(
+        filename=SUPERFINANCIERA_SOURCE,
+        url_column="URIPAGINAWEB",
+        label_column=None,
+        label_mapping={},
+        # La fuente oficial contiene sitios de entidades vigiladas, por lo que
+        # sus URLs se incorporan como ejemplos legitimos.
+        fixed_label=LABEL_LEGITIMATE,
+        # Algunos registros contienen por error un correo en URIPAGINAWEB.
+        allow_userinfo=False,
     ),
 )
 
@@ -132,21 +146,32 @@ def iter_source(path: Path, spec: SourceSpec, max_url_length: int) -> Iterator[U
     with path.open(encoding="utf-8-sig", newline="", errors="replace") as source:
         reader = csv.DictReader(source)
         columns = set(reader.fieldnames or ())
-        required = {spec.url_column, spec.label_column}
+        required = {spec.url_column}
+        if spec.label_column is not None:
+            required.add(spec.label_column)
         missing = required - columns
         if missing:
             raise ValueError(f"{path.name}: faltan columnas {sorted(missing)}")
 
         for line_number, row in enumerate(reader, start=2):
-            label_text = (row.get(spec.label_column) or "").strip().casefold()
-            if label_text not in spec.label_mapping:
-                raise ValueError(
-                    f"{path.name}, registro {line_number}: etiqueta desconocida "
-                    f"{row.get(spec.label_column)!r}"
-                )
+            if spec.fixed_label is not None:
+                label = spec.fixed_label
+            else:
+                if spec.label_column is None:
+                    raise ValueError(f"{path.name}: la fuente no define una etiqueta")
+                label_text = (row.get(spec.label_column) or "").strip().casefold()
+                if label_text not in spec.label_mapping:
+                    raise ValueError(
+                        f"{path.name}, registro {line_number}: etiqueta desconocida "
+                        f"{row.get(spec.label_column)!r}"
+                    )
+                label = spec.label_mapping[label_text]
             normalized = normalize_url(row.get(spec.url_column) or "", max_url_length)
+            if normalized is not None and not spec.allow_userinfo:
+                if urlsplit(normalized).username is not None:
+                    normalized = None
             if normalized is not None:
-                yield UrlRecord(normalized, spec.label_mapping[label_text], path.name)
+                yield UrlRecord(normalized, label, path.name)
 
 
 def merge_sources(
@@ -312,4 +337,30 @@ def write_prepared_dataset(
     }
     with (output_dir / "report.json").open("w", encoding="utf-8") as target:
         json.dump(report, target, ensure_ascii=False, indent=2, sort_keys=True)
+        target.write("\n")
+
+    official_rows = [
+        row
+        for rows in partitions.values()
+        for row in rows
+        if SUPERFINANCIERA_SOURCE in row.source.split("|")
+    ]
+    official_hosts = sorted(
+        {
+            strip_www(urlsplit(row.url).hostname or "")
+            for row in official_rows
+            if urlsplit(row.url).hostname
+        }
+    )
+    with (output_dir / "trusted_reference.json").open("w", encoding="utf-8") as target:
+        json.dump(
+            {
+                "source": SUPERFINANCIERA_SOURCE,
+                "description": "Sitios reportados por entidades vigiladas a la Superfinanciera",
+                "hosts": official_hosts,
+            },
+            target,
+            ensure_ascii=False,
+            indent=2,
+        )
         target.write("\n")
