@@ -19,14 +19,18 @@ import {
   Plus,
   ShieldCheck,
   X,
+  Info,
 } from "lucide-react";
 import MoonChatComposer from "@/components/ui/ruixen-moon-chat";
+import RadialGlowBackground from "@/components/ui/background-gradient-snippet";
 import "./LandingDemo.css";
+import TextBlockAnimation from "@/components/ui/text-block-animation";
+
 
 // Reutiliza el dashboard actual y lo carga al abrir Informes.
 const Dashboard = lazy(() => import("./App"));
 
-type View = "chat" | "informes";
+type View = "chat" | "informes" | "about";
 type Scenario = "revision" | "alto" | "bajo";
 type Turn = {
   id: string;
@@ -69,8 +73,11 @@ const suggestions = [
 ];
 
 function readView(): View {
-  return window.location.hash === "#/informes" ? "informes" : "chat";
+  if (window.location.hash === "#/informes") return "informes";
+  if (window.location.hash === "#/proyecto") return "about";
+  return "chat";
 }
+
 
 function newConversation(): Conversation {
   return { id: crypto.randomUUID(), title: "Nueva consulta", turns: [] };
@@ -174,18 +181,13 @@ export default function LandingDemo() {
   }
 
   return (
-    <div className={`af-app ${view === "chat" && !active.turns.length ? "af-is-welcome" : ""}`}
-      style={view === "chat" ? {
-        backgroundImage: "url('https://cdn.21st.dev/assets/mirror/c3/c333918af688a4a8a3d004652e6c0ee219457a9d84d380eeb31f513d4b59a09f.png')",
-        backgroundAttachment: "fixed",
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-      } : undefined}>
+    <div className={`af-app ${view === "chat" && !active.turns.length ? "af-is-welcome" : ""}`}>
+      {view !== "informes" && <RadialGlowBackground />}
       <a className="af-skip" href="#af-content" onClick={(event) => { event.preventDefault(); document.getElementById("af-content")?.focus(); }}>Saltar al contenido</a>
       <header className="af-topbar">
-        <a className="af-brand" href="#/chat" aria-label="Antifraudi-inador Bosa, inicio">
+        <a className="af-brand" href="#/chat" aria-label="Alerta Bosa, inicio">
           <span className="af-brand-icon"><ShieldCheck size={23} aria-hidden="true" /></span>
-          <span>Antifraudi-inador <small>BOSA · PREVENCIÓN DIGITAL</small></span>
+          <span>Alerta Bosa <small>PREVENCIÓN DIGITAL</small></span>
         </a>
         <div className="af-header-actions">
           {view === "chat" && <button id="af-menu" className="af-history-toggle" type="button"
@@ -199,6 +201,9 @@ export default function LandingDemo() {
           </a>
           <a href="#/informes" aria-current={view === "informes" ? "page" : undefined}>
             <BarChart3 size={16} aria-hidden="true" /><span>Informes</span>
+          </a>
+          <a href="#/proyecto" aria-current={view === "about" ? "page" : undefined}>
+            <Info size={16} aria-hidden="true" /><span>Proyecto</span>
           </a>
         </nav>
         <span className="af-demo-pill"><span /> Prototipo</span>
@@ -254,6 +259,33 @@ export default function LandingDemo() {
             <Suspense fallback={<p className="af-loading" role="status"><LoaderCircle className="af-spin" size={18} /> Cargando informes…</p>}>
               <Dashboard />
             </Suspense>
+          </main>
+           ) : view === "about" ? (
+          <main id="af-content" tabIndex={-1} className="af-about">
+            <div className="af-about-intro">
+              <span className="af-eyebrow">SOBRE EL PROYECTO</span>
+              <a href="#/chat">Volver al chat <ArrowRight size={15} aria-hidden="true" /></a>
+            </div>
+            <div className="af-about-body">
+              <TextBlockAnimation blockColor="#8b7cf8" animateOnScroll={false} duration={0.7}>
+                <h1>Alerta Bosa</h1>
+              </TextBlockAnimation>
+              <TextBlockAnimation blockColor="#404040" delay={0.15} duration={0.6}>
+                <p>
+                  Alerta Bosa es un asistente de prevención de fraude digital pensado para los
+                  comercios y familias de la localidad de Bosa. Ayuda a revisar mensajes, enlaces
+                  y llamadas sospechosas de phishing, SIM swapping o suplantación de entidades
+                  financieras antes de tomar una decisión.
+                </p>
+              </TextBlockAnimation>
+              <TextBlockAnimation blockColor="#404040" delay={0.25} duration={0.6}>
+                <p>
+                  Cada reporte queda registrado de forma trazable y se visualiza de manera
+                  agregada y anónima en el panel de Informes, priorizando la localidad de Bosa
+                  sin perder de vista el resto de Bogotá.
+                </p>
+              </TextBlockAnimation>
+            </div>
           </main>
         ) : (
           <main id="af-content" tabIndex={-1} className="af-chat">
