@@ -20,7 +20,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { SpotlightCard } from "@/components/ui/spotlight-card";
 import { ReportTracking } from "@/components/report-tracking";
+import { ReportGenerator } from "@/components/report-generator";
 import {
   Select,
   SelectContent,
@@ -32,6 +34,7 @@ import {
   api,
   date,
   normalizeReport,
+  verdict,
   type MongoReport,
   type Report,
 } from "@/lib/reports";
@@ -43,6 +46,11 @@ import {
   type GeoManifest,
 } from "@/lib/geography";
 import { cn } from "@/lib/utils";
+
+// Mismo brillo naranja de las tarjetas de la página Proyecto.
+const SPOTLIGHT = "#f9731640";
+const BOSA = "07";
+
 
 const BogotaMap = lazy(() =>
   import("@/components/bogota-map").then(({ BogotaMap }) => ({
@@ -156,6 +164,19 @@ export default function App() {
   );
   const ready = geography && !loading && !error;
   const selectedReport = reports.find((report) => report.id === selectedId);
+  // Resumen de todos los reportes (no depende de la búsqueda ni del filtro).
+  const summary = useMemo(() => {
+    const all = countLocalities(located);
+    const top = geography?.localities.features
+      .map(({ properties }) => ({ name: properties.name, count: all[properties.code] ?? 0 }))
+      .sort((a, b) => b.count - a.count)[0];
+    return {
+      total: reports.length,
+      bosa: all[BOSA] ?? 0,
+      top: top && top.count > 0 ? `${top.name} (${top.count})` : "Sin datos aún",
+      fraud: reports.filter((report) => verdict(report) === "fraude").length,
+    };
+  }, [located, geography, reports]);
 
   const selectLocality = useCallback((code: string) => {
     setLocality(code);
@@ -214,6 +235,24 @@ export default function App() {
             <RefreshCw className={cn("size-4", loading && "animate-spin")} />
             Actualizar
           </Button>
+        </div>
+        <div className="af-stat-grid" aria-label="Resumen de reportes">
+          <SpotlightCard className="af-stat-card" spotlightColor={SPOTLIGHT}>
+            <span className="af-stat-label">Reportes registrados</span>
+            <span className="af-stat-value">{ready ? summary.total : "—"}</span>
+          </SpotlightCard>
+          <SpotlightCard className="af-stat-card" spotlightColor={SPOTLIGHT}>
+            <span className="af-stat-label">Reportes en Bosa</span>
+            <span className="af-stat-value">{ready ? summary.bosa : "—"}</span>
+          </SpotlightCard>
+          <SpotlightCard className="af-stat-card" spotlightColor={SPOTLIGHT}>
+            <span className="af-stat-label">Localidad con más reportes</span>
+            <span className="af-stat-value is-text">{ready ? summary.top : "—"}</span>
+          </SpotlightCard>
+          <SpotlightCard className="af-stat-card" spotlightColor={SPOTLIGHT}>
+            <span className="af-stat-label">Positivos para fraude</span>
+            <span className="af-stat-value">{ready ? summary.fraud : "—"}</span>
+          </SpotlightCard>
         </div>
         {error && (
           <div
@@ -335,7 +374,7 @@ export default function App() {
                       className={cn(
                         "border-l-[3px] border-l-transparent p-4 transition-colors",
                         selectedId === report.id
-                          ? "border-l-primary bg-red-950/40"
+                          ? "border-l-primary bg-primary/10"
                           : "hover:bg-muted/50",
                       )}
                     >
@@ -357,13 +396,13 @@ export default function App() {
                         </span>
                       </button>
                       <div className="mt-3 flex items-start gap-2 rounded-md border bg-card/80 px-2.5 py-2">
-                        <code className="min-w-0 flex-1 select-all break-all font-mono text-[10px] leading-[1.65] text-[#566174]">
+                        <code className="min-w-0 flex-1 select-all break-all font-mono text-[10px] leading-[1.65] text-[#a3a3a3]">
                           {report.hash}
                         </code>
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="size-6 shrink-0 text-[#566174]"
+                          className="size-6 shrink-0 text-[#a3a3a3]"
                           aria-label={`Copiar hash de ${report.title}`}
                           onClick={() => void copyHash(report.id, report.hash)}
                         >
@@ -447,6 +486,7 @@ export default function App() {
         {selectedReport?.storage === "mongodb" && (
           <ReportTracking key={selectedReport.id} report={selectedReport} />
         )}
+        <ReportGenerator reports={located} ready={Boolean(ready)} />
         <Card
           className="gap-4 p-5 shadow-none"
           aria-label="Estadísticas por localidad"
@@ -485,7 +525,7 @@ export default function App() {
                   }
                   className={cn(
                     "rounded-md px-2 py-2.5 text-left transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring",
-                    locality === item.code && "bg-red-950/40",
+                    locality === item.code && "bg-primary/10",
                   )}
                 >
                   <span className="flex items-center justify-between gap-2 text-xs">
@@ -529,3 +569,4 @@ export default function App() {
     </div>
   );
 }
+

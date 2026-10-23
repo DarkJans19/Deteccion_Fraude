@@ -1,5 +1,11 @@
 import { expect, test } from "@playwright/test";
 
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() =>
+    localStorage.setItem("alerta-bosa-rol", "admin"),
+  );
+});
+
 test("lista hashes completos y ubica reportes sin cambiar el zoom", async ({
   page,
   context,

@@ -13,8 +13,12 @@ services:
       MONGODB_ENV_RAW: "1"
       ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost:${APP_PORT:-8765},127.0.0.1:${APP_PORT:-8765},localhost:8765,127.0.0.1:8765}
       FRONTEND_ORIGINS: ${FRONTEND_ORIGINS:-http://localhost:${APP_PORT:-8765},http://127.0.0.1:${APP_PORT:-8765}}
+      ANALYSIS_SERVICE_URL: http://qr:8000
     ports:
       - "127.0.0.1:${APP_PORT:-8765}:8765"
+    depends_on:
+      qr:
+        condition: service_healthy
     read_only: true
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=16m

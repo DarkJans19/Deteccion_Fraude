@@ -15,7 +15,9 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.error import HTTPError, URLError
 from urllib.parse import unquote, urlsplit
+from urllib.request import Request as UrlRequest, urlopen
 from uuid import uuid4
 
 
@@ -202,13 +204,14 @@ class ReportServer(ThreadingHTTPServer):
 
     def __init__(self, address, hasher, detector=None, *, static_dir=STATIC,
                  frontend_origins=("http://127.0.0.1:5173", "http://localhost:5173"),
-                 allowed_hosts=()):
+                 allowed_hosts=(), analysis_base_url=""):
         super().__init__(address, Handler)
         self.hasher = hasher
         self.detector = detector
         self.static_dir = Path(static_dir).resolve()
         self.frontend_origins = frozenset(frontend_origins)
         self.allowed_hosts = frozenset(allowed_hosts)
+        self.analysis_base_url = analysis_base_url.rstrip("/")
         self.csrf = secrets.token_urlsafe(32)
 
 
@@ -250,6 +253,9 @@ class Handler(BaseHTTPRequestHandler):
         self.dispatch(True)
 
     def dispatch(self, write):
+        path = urlsplit(self.path).path
+        if path.startswith("/analysis-api/"):
+            return self.proxy_analysis(path, write)
         raw_body = None
         if write:
             try:
@@ -295,6 +301,58 @@ class Handler(BaseHTTPRequestHandler):
             self.respond(503, {"error": "No se pudo acceder a los reportes locales"})
         except OSError:
             self.respond(503, {"error": "No se pudo leer el recurso local"})
+
+    def proxy_analysis(self, path, write):
+        """Expone FastAPI bajo el mismo origen del dashboard."""
+        if not self.allowed_host():
+            return self.respond(403, {"detail": "Host no permitido"})
+        if self.headers.get("Sec-Fetch-Site") == "cross-site":
+            return self.respond(403, {"detail": "Acceso externo no permitido"})
+        if not self.server.analysis_base_url:
+            return self.respond(503, {"detail": "El servicio de análisis no está configurado."})
+
+        body = None
+        if write:
+            origin = self.headers.get("Origin")
+            allowed = {"http://" + self.headers["Host"], *self.server.frontend_origins}
+            if origin and origin not in allowed:
+                return self.respond(403, {"detail": "Origen no permitido"})
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+            except ValueError:
+                length = 0
+            if not 0 < length <= 11 * 1024 * 1024:
+                return self.respond(413, {"detail": "Tamaño del envío inválido"})
+            body = self.rfile.read(length)
+
+        suffix = path.removeprefix("/analysis-api")
+        upstream = f"{self.server.analysis_base_url}/api{suffix}"
+        headers = {"Accept": "application/json"}
+        if write:
+            headers["Content-Type"] = self.headers.get("Content-Type", "")
+        request = UrlRequest(
+            upstream,
+            data=body,
+            headers=headers,
+            method="POST" if write else "GET",
+        )
+        try:
+            with urlopen(request, timeout=140) as response:
+                payload = response.read(12 * 1024 * 1024)
+                return self.respond(
+                    response.status,
+                    payload,
+                    response.headers.get("Content-Type", "application/json; charset=utf-8"),
+                )
+        except HTTPError as error:
+            payload = error.read(12 * 1024 * 1024)
+            return self.respond(
+                error.code,
+                payload,
+                error.headers.get("Content-Type", "application/json; charset=utf-8"),
+            )
+        except (URLError, TimeoutError, OSError):
+            return self.respond(503, {"detail": "El servicio de análisis no está disponible."})
 
     def get(self, path):
         if path == "/api/health":

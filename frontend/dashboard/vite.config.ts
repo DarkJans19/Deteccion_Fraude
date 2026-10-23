@@ -11,6 +11,11 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
     proxy: {
+      "/analysis-api": {
+        target: process.env.ANALYSIS_API_TARGET || "http://127.0.0.1:8000",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/analysis-api/, "/api"),
+      },
       "/api": {
         target: process.env.API_TARGET || "http://127.0.0.1:8765",
         changeOrigin: true,

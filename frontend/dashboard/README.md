@@ -16,6 +16,13 @@ python backend/core/traceability/hasher.py
 
 Abre **http://127.0.0.1:8765/dashboard/trazabilidad**. En desarrollo ejecuta el backend y `npm.cmd --prefix frontend/dashboard run dev` en otra terminal; abre **http://127.0.0.1:5173**. Si cambias el puerto del backend, define `$env:API_TARGET = "http://127.0.0.1:8766"` antes de iniciar Vite. El puerto de Vite es fijo en 5173.
 
+El chat también requiere la API FastAPI de análisis en el puerto 8000. Vite reenvía
+`/analysis-api` a `http://127.0.0.1:8000`; para otro destino define
+`ANALYSIS_API_TARGET`. La interfaz permite analizar texto y enlaces, procesar imágenes
+con OCR/QR, revisar una URL/QR, generar una respuesta directa y consultar el estado del
+servicio. En el despliegue integrado, el servidor de reportes hace este reenvío mediante
+`ANALYSIS_SERVICE_URL`.
+
 ## Interacción
 
 - Selecciona un reporte para centrar el mapa y abrir su hash en un popup. Los reportes con las mismas coordenadas se agrupan en un marcador que permite consultar todos.
