@@ -1,4 +1,17 @@
--r backend/requirements.txt
--r backend/url_analysis/requirements.txt
--r backend/telegram_bot/requirements.txt
--r backend/message_analysis/requirements.txt
+# API, MongoDB y configuracion
+pymongo==4.19.0
+python-dotenv==1.2.4
+
+# Analisis y entrenamiento de URLs
+numpy>=1.26,<3
+tensorflow>=2.16,<3
+tldextract>=5.3,<6
+
+# Modelo local de analisis de mensajes
+llama-cpp-python>=0.3,<1
+
+# Bot de Telegram
+python-telegram-bot>=20,<23
+
+# Pruebas de MongoDB
+mongomock==4.3.0

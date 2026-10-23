@@ -11,3 +11,6 @@ $env:TELEGRAM_BOT_TOKEN = "TOKEN_NUEVO"
 El token que aparecia en el commit original de la rama debe revocarse en
 BotFather y reemplazarse por uno nuevo, ya que eliminarlo del archivo actual no
 lo elimina del historial de Git.
+
+Todas las dependencias del proyecto se instalan desde `requirements.txt` en la
+raiz del repositorio.

@@ -156,7 +156,7 @@ En el dashboard, selecciona un reporte para abrir su resumen, el mensaje complet
 
 ```bash
 python3 -m venv .venv
-.venv/bin/pip install -r backend/requirements-test.txt
+.venv/bin/pip install -r requirements.txt
 npm --prefix frontend/dashboard ci
 npm --prefix frontend/dashboard run build
 .venv/bin/python -m backend.api.main
@@ -189,7 +189,7 @@ Referencias de configuración: [env_file de Compose](https://docs.docker.com/ref
 Instala sus dependencias, prepara los datos y entrena el detector híbrido:
 
 ```powershell
-.venv\Scripts\python.exe -m pip install -r backend/url_analysis/requirements.txt
+.venv\Scripts\python.exe -m pip install -r requirements.txt
 .venv\Scripts\python.exe -m backend.url_analysis.cli.prepare_dataset
 .venv\Scripts\python.exe -m backend.url_analysis.cli.train_detector
 .venv\Scripts\python.exe -m backend.url_analysis.cli.analyze "https://ejemplo.com"
@@ -229,7 +229,7 @@ indicada por `MODEL_PATH`.
 Para ejecutar el bot, instala sus dependencias y configura un token nuevo:
 
 ```powershell
-.venv\Scripts\python.exe -m pip install -r backend/telegram_bot/requirements.txt
+.venv\Scripts\python.exe -m pip install -r requirements.txt
 $env:TELEGRAM_BOT_TOKEN = "TOKEN_NUEVO"
 .venv\Scripts\python.exe -m backend.telegram_bot.bot
 ```
