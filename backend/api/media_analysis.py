@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 MAX_IMAGE_MB_DEFAULT = 10
 MAX_OCR_CHARS = 50_000
 MAX_QR_ITEMS = 20
+OCR_TIMEOUT_SECONDS = 15
 
 
 class ImageAnalysisError(ValueError):
@@ -144,6 +145,7 @@ def _ocr(image) -> tuple[str, list[str]]:
             prepared,
             lang="+".join(selected),
             config="--psm 6",
+            timeout=OCR_TIMEOUT_SECONDS,
         )
     except Exception:
         return "", ["Tesseract no pudo leer la imagen."]

@@ -43,17 +43,8 @@ COPY --chown=app:app backend/ backend/
 COPY --from=dashboard --chown=app:app /build/dist/ frontend/dashboard/dist/
 USER app
 
-# Runtime compartido por los endpoints que usan el modelo y OCR.
-FROM runtime AS model-api-runtime
-USER root
-RUN apt-get -o Acquire::ForceIPv4=true update \
-    && apt-get install --no-install-recommends --yes \
-        tesseract-ocr tesseract-ocr-eng tesseract-ocr-spa \
-    && rm -rf /var/lib/apt/lists/*
-USER app
-
 # API FastAPI, interfaz QR y análisis de URLs.
-FROM model-api-runtime AS qr
+FROM runtime AS qr
 ENV HOST=0.0.0.0 \
     PORT=8000
 EXPOSE 8000
@@ -86,7 +77,7 @@ USER node
 CMD ["node", "index.js"]
 
 # Etapa predeterminada: API principal y dashboard.
-FROM model-api-runtime AS api
+FROM runtime AS api
 ENV HOST=0.0.0.0 \
     PORT=8765
 EXPOSE 8765

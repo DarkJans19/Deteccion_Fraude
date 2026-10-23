@@ -4,46 +4,25 @@ Inicio desde la raíz: python -m uvicorn backend.api.main:app --port 8000
 """
 
 from contextlib import asynccontextmanager
-<<<<<<< HEAD
 from dataclasses import asdict
-=======
 import os
 import threading
->>>>>>> 3edb293 (feat: OCR support)
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
 from dotenv import load_dotenv
-<<<<<<< HEAD
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
-=======
-from fastapi import FastAPI, File, HTTPException, Request, UploadFile
->>>>>>> 3edb293 (feat: OCR support)
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 from starlette.concurrency import run_in_threadpool
 
-<<<<<<< HEAD
 from backend.api.media_analysis import (
     ImageAnalysisError,
     compose_analysis_text,
     extract_image_content,
     max_image_bytes,
 )
-
-=======
-from backend.api.image_ocr import (
-    MAX_IMAGE_BYTES,
-    ImageTooLargeError,
-    InvalidImageError,
-    OCRProcessingError,
-    OCRTimeoutError,
-    OCRUnavailableError,
-    UnsupportedImageFormatError,
-    extraer_texto_imagen,
-)
->>>>>>> 3edb293 (feat: OCR support)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 QR_STATIC_DIR = PROJECT_ROOT / "backend" / "qr_analysis" / "static"
@@ -87,10 +66,6 @@ class ImagenResponse(PrediccionResponse):
 
 class GeneracionResponse(BaseModel):
     respuesta_cruda: str
-
-
-class ImagenAnalisisResponse(PrediccionResponse):
-    texto_extraido: str
 
 
 class ErrorResponse(BaseModel):
@@ -179,6 +154,7 @@ async def analizar_imagen(
     """Extrae texto y QR de una imagen y aplica el mismo análisis de fraude."""
     content_type = (imagen.content_type or "").lower()
     if content_type and not content_type.startswith("image/"):
+        await imagen.close()
         raise HTTPException(
             status_code=415,
             detail="El archivo debe ser una imagen (image/*).",
@@ -237,8 +213,8 @@ async def limites_y_cabeceras(request: Request, call_next):
     route_limits = {
         "/api/analyze": (8_192, "La solicitud supera el límite de 8 KB."),
         "/api/analizar-imagen": (
-            MAX_IMAGE_BYTES + 64 * 1024,
-            "La carga supera el límite de 10 MB.",
+            max_image_bytes() + 64 * 1024,
+            "La carga supera el límite configurado para imágenes.",
         ),
     }
     limit = route_limits.get(request.url.path) if request.method == "POST" else None
@@ -310,66 +286,6 @@ async def analizar_qr(payload: QRAnalisisRequest, request: Request) -> dict[str,
             status_code=503,
             detail="No fue posible completar el análisis de la URL del QR.",
         ) from error
-
-
-@app.post(
-    "/api/analizar-imagen",
-    response_model=ImagenAnalisisResponse,
-    responses={
-        413: {"model": ErrorResponse},
-        415: {"model": ErrorResponse},
-        422: {"model": ErrorResponse},
-        503: {"model": ErrorResponse},
-        504: {"model": ErrorResponse},
-    },
-    tags=["Análisis"],
-)
-async def analizar_imagen(
-    request: Request,
-    imagen: UploadFile = File(description="Imagen del mensaje que se analizará con OCR."),
-):
-    """Extrae el texto de una imagen y lo analiza con la lógica de `/api/analizar`."""
-    try:
-        contenido = await imagen.read(MAX_IMAGE_BYTES + 1)
-    finally:
-        await imagen.close()
-
-    if len(contenido) > MAX_IMAGE_BYTES:
-        raise HTTPException(status_code=413, detail="La imagen supera el límite de 10 MB.")
-
-    try:
-        texto = await run_in_threadpool(extraer_texto_imagen, contenido)
-    except ImageTooLargeError as error:
-        raise HTTPException(status_code=413, detail=str(error)) from error
-    except UnsupportedImageFormatError as error:
-        raise HTTPException(status_code=415, detail=str(error)) from error
-    except InvalidImageError as error:
-        raise HTTPException(status_code=422, detail=str(error)) from error
-    except OCRUnavailableError as error:
-        raise HTTPException(status_code=503, detail=str(error)) from error
-    except OCRTimeoutError as error:
-        raise HTTPException(status_code=504, detail=str(error)) from error
-    except OCRProcessingError as error:
-        raise HTTPException(status_code=422, detail=str(error)) from error
-
-    if not texto:
-        raise HTTPException(status_code=422, detail="No se encontró texto legible en la imagen.")
-    if len(texto) > 50_000:
-        raise HTTPException(
-            status_code=413,
-            detail="El texto reconocido supera el límite de 50.000 caracteres.",
-        )
-
-    resultado = await request.app.state.model.predecir_async(texto)
-    return {
-        "texto_extraido": texto,
-        "es_fraude": resultado.es_fraude,
-        "veredicto": resultado.veredicto,
-        "respuesta_cruda": resultado.respuesta_cruda,
-        "veredicto_mensaje": resultado.veredicto_mensaje,
-        "veredicto_url": resultado.veredicto_url,
-        "analisis_urls": resultado.analisis_urls,
-    }
 
 
 @app.get("/api/health", tags=["Operación"])

@@ -205,7 +205,6 @@ La aplicación ofrece estos endpoints:
 | POST | `/api/analizar` | `predecir_async(texto)`, que ejecuta `predecir` en otro hilo |
 | POST | `/api/analizar-imagen` | OCR y QR de una imagen, y luego `predecir_async(texto)` |
 | POST | `/api/respuesta` | `generar(texto, max_tokens)` |
-| POST | `/api/analizar-imagen` | Tesseract OCR y luego `predecir_async(texto_extraido)` |
 | POST | `/api/analyze` | Análisis QR con `backend.qr_analysis.service.analyze_qr_url` |
 | GET | `/api/health` | Estado del detector, Safe Browsing y redirecciones |
 
@@ -233,6 +232,18 @@ La predicción devuelve todos los campos de `Prediccion`: `es_fraude`,
 `analisis_urls`. Los resultados no concluyentes conservan `es_fraude: null`.
 `/api/respuesta` recibe `texto` y, opcionalmente, `max_tokens` (60 por defecto,
 entre 1 y 512); devuelve `respuesta_cruda`.
+
+`/api/analizar-imagen` recibe el archivo multipart `imagen` y acepta un campo
+`texto` opcional como pie de foto. La respuesta incluye el OCR, los QR
+detectados, advertencias de dependencias y el veredicto del modelo. Para probar
+el procesamiento:
+
+```bash
+.venv/bin/python -m unittest backend.api.tests.test_media_analysis -v
+```
+
+La suite simula Tesseract para no depender del binario del sistema. Si Tesseract
+y el idioma inglés están instalados, también corre una prueba real de lectura.
 
 La API carga el `.env` de la raíz antes de importar el modelo; las variables
 del proceso tienen prioridad. Usa `MODEL_PATH` para cambiar el GGUF, y
