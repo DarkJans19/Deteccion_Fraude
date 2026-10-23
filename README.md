@@ -226,6 +226,44 @@ El modelo GGUF se carga desde
 `backend/message_analysis/models/qwen_bosa_antifraude.gguf` o desde la ruta
 indicada por `MODEL_PATH`.
 
+Para combinar mensajes y enlaces usa `backend.models.model`. Este módulo carga
+Qwen desde `backend/models/qwen_bosa_antifraude.gguf` (o `MODEL_PATH`), extrae
+URLs por RegEx y ejecuta el detector de URLs existente:
+
+```python
+from backend.models.model import get_model
+
+resultado = get_model().predecir("Revisa tu cuenta en https://ejemplo.com/validar")
+print(resultado.veredicto)
+```
+
+| Riesgo del mensaje | Riesgo de URL | Resultado combinado |
+| --- | --- | --- |
+| ALTO | ALTO | RIESGO ALTO |
+| ALTO | BAJO | RIESGO NO CONCLUYENTE |
+| ALTO | NO CONCLUYENTE | RIESGO ALTO |
+| BAJO | ALTO | RIESGO ALTO |
+| BAJO | BAJO | RIESGO BAJO |
+| BAJO | NO CONCLUYENTE | RIESGO NO CONCLUYENTE |
+
+Si la entrada contiene únicamente uno o varios enlaces, se ejecuta solo el
+analizador de URLs y su riesgo determina el resultado general, sin ejecutar Qwen.
+Sin URLs se conserva el riesgo del mensaje. Con varios enlaces se prioriza
+ALTO, seguido de NO CONCLUYENTE y BAJO. El resultado `review` del detector y
+los errores al analizar un enlace se consideran NO CONCLUYENTE. El detector
+entrenado debe existir en `backend/url_analysis/artifacts/url_detector`; puedes
+cambiar esa ruta con `URL_MODEL_DIR` o `FraudModel(url_model_dir=...)`.
+`es_fraude` vale `True` para ALTO, `False` para BAJO y `None` para NO CONCLUYENTE.
+`respuesta_cruda` conserva la respuesta de Qwen (vacía si solo hay enlaces);
+`veredicto` contiene el resultado
+combinado. `predecir_async` aplica las mismas reglas.
+
+Las pruebas de esta integración no cargan modelos ni consultan la red:
+
+```bash
+.venv/bin/python -m unittest discover -s backend/models/tests -v
+```
+
 Para ejecutar el bot, instala sus dependencias y configura un token nuevo:
 
 ```powershell

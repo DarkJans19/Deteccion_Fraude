@@ -231,3 +231,13 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Datos derivados y modelos entrenados (los datos fuente si se versionan).
+backend/url_analysis/data/processed/
+backend/url_analysis/artifacts/
+backend/message_analysis/models/
+artifacts/
+dataset/
+
+# Modelos GGUF (pesan ~1.6 GB; GitHub rechaza archivos de más de 100 MB)
+*.gguf
