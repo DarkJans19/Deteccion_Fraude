@@ -21,16 +21,20 @@ type Props = {
   selectedLocality: string;
   onSelectReport: (id: string) => void;
   onSelectLocality: (code: string) => void;
+  /** Modo público: sin pines en la leyenda y sin zoom con la rueda (para no atrapar el scroll de la página). */
+  aggregateOnly?: boolean;
 };
 
+// Paleta Alerta Bosa, de menos a más reportes: azul noche → naranja.
+const MAP_COLORS = ["#0b1630", "#1e3a8a", "#c2410c", "#f97316"] as const;
 const fill = (count: number, max: number) =>
   count === 0
-    ? "#161225"
+    ? MAP_COLORS[0]
     : count / max > 0.66
-      ? "#7c6be8"
+      ? MAP_COLORS[3]
       : count / max > 0.33
-        ? "#51409b"
-        : "#30225f";
+        ? MAP_COLORS[2]
+        : MAP_COLORS[1];
 const urbanCenter: L.LatLngExpression = [4.66, -74.115];
 
 export function BogotaMap(props: Props) {
@@ -53,7 +57,9 @@ export function BogotaMap(props: Props) {
       zoomControl: false,
       minZoom: 3,
       maxZoom: 19,
-      scrollWheelZoom: true,
+      scrollWheelZoom: !props.aggregateOnly,
+      // En celular, arrastrar con un dedo debe mover la página, no el mapa público.
+      dragging: !(props.aggregateOnly && L.Browser.mobile),
       keyboard: true,
     });
     mapRef.current = map;
@@ -359,14 +365,17 @@ export function BogotaMap(props: Props) {
         )}
       </div>
       <div className="flex flex-wrap items-center justify-between gap-3 border-t bg-card px-4 py-3 text-[11px] text-muted-foreground">
-        <span className="flex items-center gap-2">
-          <span className="size-2.5 rounded-full bg-primary ring-2 ring-red-950" />
-          Reportes anónimos
-        </span>
+        {!props.aggregateOnly && (
+          <span className="flex items-center gap-2">
+            {/* Mismo color que los pines del mapa (.report-pin en index.css). */}
+            <span className="size-2.5 rounded-full bg-[#b9414b] ring-2 ring-[#b8c3d3]" />
+            Reportes anónimos
+          </span>
+        )}
         <span className="flex items-center gap-2">
           Menos
           <span className="flex gap-0.5">
-            {["#161225", "#30225f", "#51409b", "#7c6be8"].map((color) => (
+            {MAP_COLORS.map((color) => (
               <span
                 key={color}
                 className="h-2.5 w-5 rounded-sm"
@@ -380,4 +389,3 @@ export function BogotaMap(props: Props) {
     </div>
   );
 }
-

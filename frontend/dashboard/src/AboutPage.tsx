@@ -1,5 +1,6 @@
 import { ArrowDown } from "lucide-react";
 import TextBlockAnimation from "@/components/ui/text-block-animation";
+import TerritorialMap from "@/components/territorial-map";
 import "./AboutPage.css";
 
 // Paleta azul noche + naranja, la misma del fondo del chat.
@@ -109,7 +110,24 @@ export default function AboutPage() {
         </div>
       </section>
 
-      {/* 4. Llamado a la acción */}
+            {/* 4. Mapa territorial (solo totales por localidad) */}
+      <section className="af-about-section" aria-labelledby="af-about-map-title">
+        <div className="af-about-section-inner af-about-section-wide">
+          <TextBlockAnimation blockColor={BLUE} duration={0.7}>
+            <h2 id="af-about-map-title">Alertas en el territorio</h2>
+          </TextBlockAnimation>
+          <TextBlockAnimation blockColor={ORANGE} stagger={0.03}>
+            <p>
+              Cada consulta reportada suma al mapa de su localidad. Así la comunidad, las
+              organizaciones y las autoridades pueden ver dónde se concentran los intentos de
+              fraude, <strong>sin exponer datos de nadie</strong>.
+            </p>
+          </TextBlockAnimation>
+          <TerritorialMap />
+        </div>
+      </section>
+
+      {/* 5. Llamado a la acción */}
       <footer className="af-about-footer">
         <TextBlockAnimation blockColor={ORANGE} duration={0.8}>
           <a href="#/chat" className="af-about-cta">Haz tu consulta.</a>

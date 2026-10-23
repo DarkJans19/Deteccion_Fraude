@@ -57,3 +57,24 @@
   .af-about-section { padding: 64px 20px; }
   .af-about-step { gap: 14px; padding: 16px; }
 }
+
+/* Mapa territorial: solo totales por localidad */
+.af-about-section-wide { max-width: 1040px; }
+.af-about-map { display: flex; flex-direction: column; gap: 16px; }
+.af-about-map-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+/* Tarjetas con efecto spotlight: misma forma del snippet, colores azul noche + naranja. */
+.af-about-stat-card { display: flex; flex-direction: column; gap: 8px; border-color: var(--ab-border); background: rgba(11, 22, 48, .85); }
+.af-about-stat-label { font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--ab-muted); }
+.af-about-stat-value { font-size: 32px; line-height: 1.1; font-weight: 800; color: var(--ab-orange); }
+.af-about-stat-value.is-text { font-size: 20px; line-height: 1.4; color: var(--ab-blue-soft); }
+.af-about-map-frame { min-height: 490px; overflow: hidden; border: 1px solid var(--ab-border); border-radius: 12px; background: #0b1630; }
+.af-about-map-placeholder { display: flex; align-items: center; justify-content: center; gap: 10px; height: 490px; color: var(--ab-muted); font-size: 13px; }
+.af-about-section .af-about-map-note { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; font-size: 13px; line-height: 1.6; color: var(--ab-muted); }
+.af-about-map-note button { padding: 0; border: 0; background: transparent; color: var(--ab-orange-soft); font-size: 13px; text-decoration: underline; text-underline-offset: 4px; }
+@media (min-width: 640px) {
+  .af-about-map-frame { min-height: 600px; }
+  .af-about-map-placeholder { height: 600px; }
+}
+@media (max-width: 640px) {
+  .af-about-map-stats { grid-template-columns: 1fr; }
+}
