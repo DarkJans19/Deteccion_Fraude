@@ -25,12 +25,12 @@ type Props = {
 
 const fill = (count: number, max: number) =>
   count === 0
-    ? "#3a2027"
+    ? "#161225"
     : count / max > 0.66
-      ? "#a83f50"
+      ? "#7c6be8"
       : count / max > 0.33
-        ? "#773d49"
-        : "#592d38";
+        ? "#51409b"
+        : "#30225f";
 const urbanCenter: L.LatLngExpression = [4.66, -74.115];
 
 export function BogotaMap(props: Props) {
@@ -366,7 +366,7 @@ export function BogotaMap(props: Props) {
         <span className="flex items-center gap-2">
           Menos
           <span className="flex gap-0.5">
-            {["#3a2027", "#592d38", "#773d49", "#a83f50"].map((color) => (
+            {["#161225", "#30225f", "#51409b", "#7c6be8"].map((color) => (
               <span
                 key={color}
                 className="h-2.5 w-5 rounded-sm"
@@ -380,3 +380,4 @@ export function BogotaMap(props: Props) {
     </div>
   );
 }
+

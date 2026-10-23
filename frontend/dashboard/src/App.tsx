@@ -335,7 +335,7 @@ export default function App() {
                       className={cn(
                         "border-l-[3px] border-l-transparent p-4 transition-colors",
                         selectedId === report.id
-                          ? "border-l-primary bg-red-950/40"
+                          ? "border-l-primary bg-primary/10"
                           : "hover:bg-muted/50",
                       )}
                     >
@@ -357,13 +357,13 @@ export default function App() {
                         </span>
                       </button>
                       <div className="mt-3 flex items-start gap-2 rounded-md border bg-card/80 px-2.5 py-2">
-                        <code className="min-w-0 flex-1 select-all break-all font-mono text-[10px] leading-[1.65] text-[#566174]">
+                        <code className="min-w-0 flex-1 select-all break-all font-mono text-[10px] leading-[1.65] text-[#a3a3a3]">
                           {report.hash}
                         </code>
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="size-6 shrink-0 text-[#566174]"
+                          className="size-6 shrink-0 text-[#a3a3a3]"
                           aria-label={`Copiar hash de ${report.title}`}
                           onClick={() => void copyHash(report.id, report.hash)}
                         >
@@ -485,7 +485,7 @@ export default function App() {
                   }
                   className={cn(
                     "rounded-md px-2 py-2.5 text-left transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring",
-                    locality === item.code && "bg-red-950/40",
+                    locality === item.code && "bg-primary/10",
                   )}
                 >
                   <span className="flex items-center justify-between gap-2 text-xs">
@@ -529,3 +529,4 @@ export default function App() {
     </div>
   );
 }
+
