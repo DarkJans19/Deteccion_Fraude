@@ -30,6 +30,7 @@ from backend.reporting.mongo import (MongoReports, REPORT_SCHEMA, client_from_en
 def payload(**changes):
     return {"description": "Mensaje SMS fraudulento que suplanta una entidad bancaria.",
             "messageContent": "BANCO: Su cuenta está bloqueada.\nValide sus datos en https://ejemplo.invalid/verificar\nCódigo: áéñ <script>alert(1)</script>",
+            "riskLevel": "RIESGO ALTO",
             "date": "2026-10-22T15:30:00.123456Z",
             "location": {"type": "Point", "coordinates": [-74.0721, 4.7110]}, **changes}
 
@@ -72,7 +73,8 @@ class MongoTests(unittest.TestCase):
 
     def test_native_bson_exact_schema_and_precision_survive_reopening(self):
         report_id, document = self.create()
-        self.assertEqual(set(document), {"_id", "description", "messageContent", "date", "hashCode", "location"})
+        self.assertEqual(set(document), {"_id", "description", "messageContent", "riskLevel", "date", "hashCode", "location"})
+        self.assertEqual(document["riskLevel"], "RIESGO ALTO")
         raw = self.store.reports.find_one({"_id": ObjectId(report_id)})
         self.assertIsInstance(raw["_id"], ObjectId)
         self.assertIsInstance(raw["date"], datetime)
@@ -143,6 +145,7 @@ class MongoTests(unittest.TestCase):
     def test_legacy_report_is_read_without_fabricating_message_content(self):
         legacy = payload()
         legacy.pop("messageContent")
+        legacy.pop("riskLevel")
         legacy["_id"] = ObjectId()
         legacy["date"] = datetime(2026, 10, 22, 15, 30, tzinfo=timezone.utc)
         legacy["hashCode"] = legacy_report_hash(legacy)
@@ -150,6 +153,29 @@ class MongoTests(unittest.TestCase):
         loaded = self.store.get_report(str(legacy["_id"]))
         self.assertNotIn("messageContent", loaded)
         self.assertEqual(loaded["hashCode"], legacy["hashCode"])
+
+    def test_existing_full_report_without_risk_field_keeps_its_original_hash(self):
+        old_report = payload()
+        old_report.pop("riskLevel")
+        old_report["_id"] = ObjectId()
+        old_report["date"] = datetime(2026, 10, 22, 15, 30, tzinfo=timezone.utc)
+        old_report["hashCode"] = report_hash(old_report)
+        self.store.reports.insert_one(old_report, bypass_document_validation=True)
+        loaded = self.store.get_report(str(old_report["_id"]))
+        self.assertNotIn("riskLevel", loaded)
+        self.assertEqual(loaded["hashCode"], old_report["hashCode"])
+
+    def test_only_high_risk_reports_are_persisted(self):
+        for risk in ("RIESGO BAJO", "RIESGO NO CONCLUYENTE", None):
+            data = payload()
+            if risk is None:
+                data.pop("riskLevel")
+            else:
+                data["riskLevel"] = risk
+            self.assertEqual(self.request("POST", "/api/reports", data)[0], 400)
+        self.assertEqual(self.store.reports.count_documents({}), 0)
+        self.assertEqual(self.request("POST", "/api/reports", payload())[0], 201)
+        self.assertEqual(self.store.reports.count_documents({}), 1)
 
     def test_http_native_create_read_export_and_unknown_cases(self):
         status, document = self.request("POST", "/api/reports", payload())
@@ -302,14 +328,17 @@ class MongoTests(unittest.TestCase):
         self.assertTrue(indexes["report_hash_unique"]["unique"])
         self.assertEqual(indexes["report_location"]["key"], [("location", "2dsphere")])
         for changes in ({"date": "not BSON"}, {"extra": "forbidden"}, {"hashCode": "bad"},
+                        {"riskLevel": "RIESGO BAJO"},
                         {"description": "x" * 2001}, {"messageContent": None}, {"messageContent": "x" * 50001}):
             raw = {"_id": ObjectId(), "description": "Prueba", "date": datetime.now(timezone.utc),
                    "messageContent": "Texto completo del mensaje original",
+                   "riskLevel": "RIESGO ALTO",
                    "hashCode": "b" * 64, "location": {"type": "Point", "coordinates": [-74, 4]}, **changes}
             with self.assertRaises(WriteError):
                 self.store.reports.insert_one(raw)
         raw = payload()
         raw.pop("messageContent")
+        raw.pop("riskLevel")
         raw["date"] = datetime.now(timezone.utc)
         raw["hashCode"] = "c" * 64
         with self.assertRaises(WriteError):
@@ -317,10 +346,14 @@ class MongoTests(unittest.TestCase):
 
     @unittest.skipUnless(os.getenv("TEST_MONGODB_URI"), "Requiere un MongoDB real de pruebas")
     def test_existing_validator_is_upgraded_without_rewriting_legacy_documents(self):
-        legacy_schema = {**REPORT_SCHEMA, "required": [field for field in REPORT_SCHEMA["required"] if field != "messageContent"]}
+        legacy_schema = {**REPORT_SCHEMA, "required": [field for field in REPORT_SCHEMA["required"]
+                                                         if field not in {"messageContent", "riskLevel"}],
+                         "properties": {key: value for key, value in REPORT_SCHEMA["properties"].items()
+                                        if key != "riskLevel"}}
         self.database.command("collMod", "fraud_reports", validator={"$jsonSchema": legacy_schema})
         legacy = payload()
         legacy.pop("messageContent")
+        legacy.pop("riskLevel")
         legacy["date"] = datetime.now(timezone.utc).replace(microsecond=0)
         legacy["hashCode"] = legacy_report_hash(legacy)
         inserted = self.store.reports.insert_one(legacy).inserted_id

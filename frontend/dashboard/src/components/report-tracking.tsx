@@ -80,6 +80,11 @@ export function ReportTracking({ report }: { report: Report }) {
         <p className="mt-2 break-all text-xs text-muted-foreground">
           Caso {report.id}
         </p>
+        {report.risk_level && (
+          <p className="mt-2 text-sm">
+            Resultado del análisis: <strong>{report.risk_level}</strong>
+          </p>
+        )}
       </div>
       <section aria-label="Contenido completo del mensaje">
         <h3 className="text-sm font-semibold">

@@ -23,6 +23,13 @@ con OCR/QR, revisar una URL/QR, generar una respuesta directa y consultar el est
 servicio. En el despliegue integrado, el servidor de reportes hace este reenvío mediante
 `ANALYSIS_SERVICE_URL`.
 
+Cuando el análisis de mensaje, imagen o URL/QR devuelve **RIESGO ALTO**, el chat
+solicita ubicación y registra el caso en MongoDB con el flujo existente de hash,
+mapa y seguimiento. Si la ubicación se deniega o el servicio de reportes falla,
+el resultado aparece como no guardado. Los resultados **RIESGO BAJO** y
+**RIESGO NO CONCLUYENTE** no se envían a la base de datos. La API y el validador
+MongoDB rechazan también escrituras con otra clasificación.
+
 ## Interacción
 
 - Selecciona un reporte para centrar el mapa y abrir su hash en un popup. Los reportes con las mismas coordenadas se agrupan en un marcador que permite consultar todos.

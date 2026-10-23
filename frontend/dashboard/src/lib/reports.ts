@@ -1,4 +1,5 @@
 export type Verdict = "fraude" | "no_fraude" | "incierto" | "sin_analisis";
+export type RiskVerdict = "RIESGO ALTO" | "RIESGO BAJO" | "RIESGO NO CONCLUYENTE";
 export type Source = "sms" | "correo" | "otro";
 export type ReportLocation = {
   latitude: number;
@@ -28,6 +29,7 @@ export type Report = {
   fraud_positive: boolean | null;
   hash: string;
   storage?: "mongodb";
+  risk_level?: RiskVerdict;
 };
 export type MongoReport = {
   _id: { $oid: string };
@@ -36,6 +38,7 @@ export type MongoReport = {
   date: { $date: string };
   hashCode: string;
   location: { type: "Point"; coordinates: [number, number] };
+  riskLevel?: RiskVerdict;
 };
 export type CaseStatus =
   "registrado" | "en_revision" | "confirmado" | "descartado" | "cerrado";
@@ -79,6 +82,7 @@ export function normalizeReport(report: Report | MongoReport): Report {
     fraud_positive: null,
     hash: report.hashCode,
     storage: "mongodb",
+    risk_level: report.riskLevel,
   };
 }
 export type ReportInput = Pick<
@@ -147,4 +151,47 @@ export async function api<T>(path: string, options?: RequestInit): Promise<T> {
   if (!response.ok)
     throw new Error(result.error || "No se pudo completar la operación.");
   return result as T;
+}
+
+/** Guarda un caso alto usando el flujo MongoDB existente de hash y seguimiento. */
+export async function registerHighRiskReport(
+  description: string,
+  messageContent: string,
+): Promise<string> {
+  if (!navigator.geolocation)
+    throw new Error("Este navegador no permite consultar la ubicación necesaria para el seguimiento.");
+
+  const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+    navigator.geolocation.getCurrentPosition(resolve, reject, {
+      enableHighAccuracy: false,
+      maximumAge: 300_000,
+      timeout: 15_000,
+    });
+  }).catch((error: GeolocationPositionError) => {
+    const message = error.code === error.PERMISSION_DENIED
+      ? "Permite el acceso a la ubicación para guardar este caso de RIESGO ALTO."
+      : error.code === error.TIMEOUT
+        ? "La consulta de ubicación tardó demasiado; el caso no se guardó."
+        : "No se pudo determinar la ubicación; el caso no se guardó.";
+    throw new Error(message);
+  });
+
+  const session = await api<Session>("/api/session");
+  const report = await api<MongoReport>("/api/reports", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-CSRF-Token": session.csrf,
+    },
+    body: JSON.stringify({
+      description,
+      messageContent,
+      riskLevel: "RIESGO ALTO",
+      location: {
+        type: "Point",
+        coordinates: [position.coords.longitude, position.coords.latitude],
+      },
+    }),
+  });
+  return report._id.$oid;
 }

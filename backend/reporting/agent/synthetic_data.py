@@ -69,6 +69,7 @@ def create_synthetic_dataset(database: Database, base_date_utc: Optional[datetim
                 "_id": ObjectId(),
                 "description": f"{desc} - Caso {i+1}",
                 "messageContent": text,
+                "riskLevel": "RIESGO ALTO",
                 "date": r_date,
                 "location": {"type": "Point", "coordinates": [-74.0721 + (i * 0.01), 4.7110 + (i * 0.01)]},
             }
@@ -97,6 +98,7 @@ def create_synthetic_dataset(database: Database, base_date_utc: Optional[datetim
         "_id": ObjectId(),
         "description": "Reporte adulterado con hash inválido",
         "messageContent": "Mensaje adulterado manualmente en base de datos",
+        "riskLevel": "RIESGO ALTO",
         "date": base_date_utc + timedelta(days=4),
         "location": {"type": "Point", "coordinates": [-74.0500, 4.6500]},
         "hashCode": "0000000000000000000000000000000000000000000000000000000000000000",

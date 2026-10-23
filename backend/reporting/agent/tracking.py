@@ -5,6 +5,8 @@ from bson import ObjectId
 
 from backend.reporting.mongo import STATUSES, event_hash
 
+TupleStr = tuple[str, Optional[dict]]
+
 
 def get_latest_status_at_cutoff(
     report_id: ObjectId,
@@ -43,6 +45,3 @@ def get_latest_status_at_cutoff(
         status = "desconocido"
         
     return status, last_event
-
-
-TupleStr = tuple[str, Optional[dict]]

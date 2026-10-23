@@ -33,6 +33,7 @@ import {
   type Prediction,
   type QrAnalysis,
 } from "@/lib/analysis";
+import { registerHighRiskReport } from "@/lib/reports";
 import AboutPage from "./AboutPage";
 import "./LandingDemo.css";
 
@@ -95,6 +96,7 @@ type Turn = {
   mode: AnalysisMode;
   fileName?: string;
   result: TurnResult;
+  report?: { status: "saved"; id: string } | { status: "failed"; message: string };
 };
 type Conversation = { id: string; title: string; turns: Turn[] };
 
@@ -434,12 +436,52 @@ export default function LandingDemo() {
     } catch (failure) {
       result = { kind: "error", message: (failure as Error).message };
     }
+    let report: Turn["report"];
+    if (result.kind === "prediction" && result.data.veredicto === "RIESGO ALTO") {
+      const imageResult = "texto_extraido" in result.data ? result.data : null;
+      const messageContent = imageResult
+        ? [
+            content,
+            imageResult.texto_extraido,
+            ...imageResult.qr_detectados.map((qr) => `Código QR: ${qr}`),
+          ].filter(Boolean).join("\n\n")
+        : content;
+      const description = `Riesgo alto en ${imageResult ? "imagen" : "mensaje"}: ${content || "contenido detectado"}`.slice(0, 2000);
+      try {
+        report = {
+          status: "saved",
+          id: await registerHighRiskReport(
+            description,
+            messageContent || "Contenido detectado en imagen con resultado RIESGO ALTO.",
+          ),
+        };
+      } catch (failure) {
+        report = { status: "failed", message: (failure as Error).message };
+      }
+    } else if (result.kind === "qr" && result.data.summary.risk_level === "high") {
+      const { summary, scanned, destination } = result.data;
+      const messageContent = [
+        `URL analizada: ${scanned.url}`,
+        `Destino final: ${destination.url}`,
+        summary.title,
+        ...summary.reasons,
+      ].join("\n");
+      try {
+        report = {
+          status: "saved",
+          id: await registerHighRiskReport("Riesgo alto en análisis de URL o QR", messageContent),
+        };
+      } catch (failure) {
+        report = { status: "failed", message: (failure as Error).message };
+      }
+    }
     const turn: Turn = {
       id: crypto.randomUUID(),
       content: content || `Imagen: ${submittedFile?.name}`,
       mode: submittedFile ? "analysis" : submittedMode,
       fileName: submittedFile?.name,
       result,
+      report,
     };
     setConversations((current) =>
       current.map((item) =>
@@ -672,7 +714,9 @@ export default function LandingDemo() {
                   Conoce el proyecto <ArrowRight size={14} aria-hidden="true" />
                 </a>
                 <small>
-                  Las consultas son temporales y se borran al recargar.
+                  Las consultas no se guardan. Solo los casos RIESGO ALTO se
+                  conservan con mensaje y ubicación para seguimiento; los
+                  resultados BAJO y NO CONCLUYENTE no se registran.
                 </small>
               </div>
             </aside>
@@ -722,7 +766,9 @@ export default function LandingDemo() {
                   <p className="af-welcome-description">
                     Hecho para los comercios y familias de Bosa: revisa
                     mensajes, enlaces y llamadas sospechosas antes de pagar,
-                    responder o compartir un código.
+                    responder o compartir un código. Si el análisis da RIESGO
+                    ALTO, el mensaje y tu ubicación se guardan para seguimiento;
+                    los otros resultados no se registran.
                   </p>
                   <a
                     className="af-telegram-cta"
@@ -765,6 +811,15 @@ export default function LandingDemo() {
                             Asistente · resultado del servicio
                           </span>
                           <TurnResultView turn={turn} />
+                          {turn.report?.status === "saved" ? (
+                            <p className="af-report-status" role="status">
+                              Caso RIESGO ALTO guardado para seguimiento · ID {turn.report.id}
+                            </p>
+                          ) : turn.report?.status === "failed" ? (
+                            <p className="af-report-status is-error" role="alert">
+                              El análisis fue de RIESGO ALTO, pero no se guardó para seguimiento. {turn.report.message}
+                            </p>
+                          ) : null}
                           <button
                             className="af-copy"
                             type="button"

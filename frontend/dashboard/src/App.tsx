@@ -174,7 +174,9 @@ export default function App() {
       total: reports.length,
       bosa: all[BOSA] ?? 0,
       top: top && top.count > 0 ? `${top.name} (${top.count})` : "Sin datos aún",
-      fraud: reports.filter((report) => verdict(report) === "fraude").length,
+      fraud: reports.filter(
+        (report) => verdict(report) === "fraude" || report.risk_level === "RIESGO ALTO",
+      ).length,
     };
   }, [located, geography, reports]);
 
@@ -387,6 +389,11 @@ export default function App() {
                         <span className="block truncate text-sm font-medium">
                           {report.title}
                         </span>
+                        {report.risk_level && (
+                          <Badge variant="destructive" className="mt-1 text-[10px]">
+                            {report.risk_level}
+                          </Badge>
+                        )}
                         <span className="mt-1.5 flex flex-wrap items-center justify-between gap-1 text-[11px] text-muted-foreground">
                           <span className="flex items-center gap-1">
                             <MapPin className="size-3" />
@@ -569,4 +576,3 @@ export default function App() {
     </div>
   );
 }
-

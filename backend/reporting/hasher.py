@@ -396,6 +396,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.respond(201, hasher.add_tracking(parts[2], data["status"], data["note"]))
         if path == "/api/reports":
             if hasattr(hasher, "create_document"):
+                if data.get("riskLevel") != "RIESGO ALTO":
+                    raise ValueError("Solo se registran reportes con resultado RIESGO ALTO")
                 return self.respond(201, hasher.create_document(data))
             if set(data) - {"title", "text", "source", "source_ref", "geolocation"}:
                 raise ValueError("Campos desconocidos: el reporte es anónimo y no admite datos de usuario")

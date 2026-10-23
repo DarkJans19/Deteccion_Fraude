@@ -19,8 +19,22 @@ async function send(page: Page, value: string) {
 
 test("conecta estado, texto, generación, QR e imagen con FastAPI", async ({
   page,
+  context,
 }) => {
   const called: string[] = [];
+  const savedReports: Record<string, unknown>[] = [];
+  await context.grantPermissions(["geolocation"]);
+  await context.setGeolocation({ latitude: 4.711, longitude: -74.0721 });
+  await page.route("**/api/session", (route) =>
+    route.fulfill({ json: { csrf: "test-csrf", model_available: true } }),
+  );
+  await page.route("**/api/reports", async (route) => {
+    savedReports.push(route.request().postDataJSON());
+    return route.fulfill({
+      status: 201,
+      json: { _id: { $oid: `6a000000000000000000000${savedReports.length}` } },
+    });
+  });
   await page.route("**/analysis-api/**", async (route) => {
     const url = new URL(route.request().url());
     called.push(url.pathname);
@@ -89,6 +103,13 @@ test("conecta estado, texto, generación, QR e imagen con FastAPI", async ({
   await expect(
     page.getByRole("heading", { name: "RIESGO ALTO" }),
   ).toBeVisible();
+  await expect(page.getByRole("status")).toContainText("guardado para seguimiento");
+  expect(savedReports).toHaveLength(1);
+  expect(savedReports[0]).toMatchObject({
+    riskLevel: "RIESGO ALTO",
+    messageContent: "Mensaje sospechoso https://fraude.example",
+    location: { type: "Point", coordinates: [-74.0721, 4.711] },
+  });
 
   await page.getByLabel("Tipo de consulta:").selectOption("generation");
   await page.getByLabel("Longitud máxima de la respuesta").selectOption("256");
@@ -96,10 +117,14 @@ test("conecta estado, texto, generación, QR e imagen con FastAPI", async ({
   await expect(
     page.getByText("Orientación generada por el modelo."),
   ).toBeVisible();
+  expect(savedReports).toHaveLength(1);
 
   await page.getByLabel("Tipo de consulta:").selectOption("qr");
   await send(page, "https://inicio.example");
   await expect(page.getByText("https://destino.example")).toBeVisible();
+  await expect(page.getByRole("status")).toContainText("guardado para seguimiento");
+  expect(savedReports).toHaveLength(2);
+  expect(savedReports[1]).toMatchObject({ riskLevel: "RIESGO ALTO" });
 
   await page.locator('input[type="file"]').setInputFiles({
     name: "captura.png",
@@ -108,6 +133,9 @@ test("conecta estado, texto, generación, QR e imagen con FastAPI", async ({
   });
   await page.getByRole("button", { name: "Enviar consulta" }).click();
   await expect(page.getByText("Texto del comprobante")).toBeVisible();
+  await expect(page.getByRole("status")).toContainText("guardado para seguimiento");
+  expect(savedReports).toHaveLength(3);
+  expect(savedReports[2]).toMatchObject({ riskLevel: "RIESGO ALTO" });
   expect(called).toEqual(
     expect.arrayContaining([
       "/analysis-api/health",
@@ -117,4 +145,48 @@ test("conecta estado, texto, generación, QR e imagen con FastAPI", async ({
       "/analysis-api/analizar-imagen",
     ]),
   );
+});
+
+test("no registra análisis con riesgo bajo ni no concluyente", async ({
+  page,
+  context,
+}) => {
+  let saved = 0;
+  await page.route("**/api/session", (route) =>
+    route.fulfill({ json: { csrf: "test-csrf", model_available: true } }),
+  );
+  await page.route("**/api/reports", async (route) => {
+    saved += 1;
+    return route.fulfill({ status: 201, json: { _id: { $oid: "6a0000000000000000000001" } } });
+  });
+  await page.route("**/analysis-api/**", (route) => {
+    if (route.request().method() === "GET")
+      return route.fulfill({
+        json: {
+          status: "ok",
+          model_available: true,
+          safe_browsing_configured: true,
+          redirect_checks_enabled: true,
+        },
+      });
+    const text = route.request().postDataJSON().texto as string;
+    const low = text.includes("seguro");
+    return route.fulfill({
+      json: {
+        ...prediction,
+        es_fraude: low ? false : null,
+        veredicto: low ? "RIESGO BAJO" : "RIESGO NO CONCLUYENTE",
+        veredicto_mensaje: low ? "RIESGO BAJO" : "RIESGO NO CONCLUYENTE",
+        veredicto_url: null,
+      },
+    });
+  });
+  await context.grantPermissions(["geolocation"]);
+  await context.setGeolocation({ latitude: 4.711, longitude: -74.0721 });
+  await page.goto("/#/chat");
+  await send(page, "Mensaje seguro");
+  await expect(page.getByRole("heading", { name: "RIESGO BAJO" })).toBeVisible();
+  await send(page, "Mensaje sin señales suficientes");
+  await expect(page.getByRole("heading", { name: "RIESGO NO CONCLUYENTE" })).toBeVisible();
+  expect(saved).toBe(0);
 });

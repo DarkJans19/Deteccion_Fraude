@@ -1,12 +1,13 @@
 {
   "fraud_reports": {
     "bsonType": "object",
-    "required": ["_id", "description", "messageContent", "date", "hashCode", "location"],
+    "required": ["_id", "description", "messageContent", "riskLevel", "date", "hashCode", "location"],
     "additionalProperties": false,
     "properties": {
       "_id": { "bsonType": "objectId" },
       "description": { "bsonType": "string", "minLength": 1, "maxLength": 2000 },
       "messageContent": { "bsonType": "string", "minLength": 1, "maxLength": 50000 },
+      "riskLevel": { "enum": ["RIESGO ALTO"] },
       "date": { "bsonType": "date" },
       "hashCode": { "bsonType": "string", "pattern": "^[a-fA-F0-9]{64}$" },
       "location": {

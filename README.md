@@ -70,15 +70,16 @@ La configuración local usa `mongo:7.0`, comprobado con este entorno. La imagen 
 
 ## Documento del reporte
 
-Los nuevos documentos de `fraud_reports` contienen estos seis campos. `_id` es un `ObjectId` BSON, `date` es un `Date` BSON UTC y las coordenadas GeoJSON tienen el orden **[longitud, latitud]**:
+Los nuevos documentos de `fraud_reports` contienen estos siete campos. Solo se acepta `riskLevel: "RIESGO ALTO"`; el servidor rechaza resultados bajos, no concluyentes y solicitudes sin clasificación. `_id` es un `ObjectId` BSON, `date` es un `Date` BSON UTC y las coordenadas GeoJSON tienen el orden **[longitud, latitud]**:
 
 ```json
 {
   "_id": { "$oid": "672a1b2c3d4e5f6789012345" },
   "description": "Intento de phishing mediante SMS bancario",
   "messageContent": "BANCO: Su cuenta fue bloqueada. Verifique sus datos en https://ejemplo.invalid/verificar",
+  "riskLevel": "RIESGO ALTO",
   "date": { "$date": "2026-10-22T15:30:00.000Z" },
-  "hashCode": "239f798c7f5c19ef56aaa350fcfb8fdecf86dc7c92a8805b3457d234159dfd3e",
+  "hashCode": "4f4acc7a03329136c558595c0c636f83ff73fe23380a881f5ed968d3fe88b980",
   "location": { "type": "Point", "coordinates": [-74.0721, 4.7110] }
 }
 ```
@@ -87,11 +88,11 @@ Los nuevos documentos de `fraud_reports` contienen estos seis campos. `_id` es u
 
 `description` es el resumen, de 1 a 2.000 caracteres. `messageContent` es obligatorio para los nuevos reportes y guarda el mensaje completo, de 1 a 50.000 caracteres. Se preservan exactamente Unicode, espacios y saltos de línea; no se sustituye por el resumen ni se recorta el texto antes de persistirlo.
 
-El servidor genera `_id` y `hashCode`; si omites `date`, registra la hora actual. El hash SHA-256 cubre **`description`, `messageContent`, `date` y `location`**. La fecha se normaliza a UTC con milisegundos y las coordenadas a flotantes. Se usa JSON UTF-8, claves ordenadas, sin espacios y sin escapar Unicode. `_id` y `hashCode` no forman parte del cálculo. La misma descripción, mensaje completo, fecha al milisegundo y ubicación se considera un duplicado y devuelve 409.
+El servidor genera `_id` y `hashCode`; si omites `date`, registra la hora actual. El hash SHA-256 cubre **`description`, `messageContent`, `riskLevel`, `date` y `location`**. La fecha se normaliza a UTC con milisegundos y las coordenadas a flotantes. Se usa JSON UTF-8, claves ordenadas, sin espacios y sin escapar Unicode. `_id` y `hashCode` no forman parte del cálculo. La misma descripción, mensaje completo, resultado, fecha al milisegundo y ubicación se considera un duplicado y devuelve 409.
 
 El patrón `^[a-fA-F0-9]{64}$` solo comprueba que un hash tenga el formato adecuado. No calcula un SHA-256 ni comprueba que corresponda al reporte. La API también verifica esa correspondencia: un valor de ejemplo de 64 caracteres puede ser rechazado aunque pase el validador de MongoDB. Si envías `hashCode`, debe coincidir con el calculado; se aceptan mayúsculas y minúsculas y la API genera valores en minúsculas. Lo recomendable es omitirlo al registrar por API.
 
-Al iniciar se crean las colecciones nuevas y se actualizan mediante `collMod` los validadores anteriores que difieran del esquema. También se preparan un índice único sobre `hashCode`, otro por fecha, uno geográfico `2dsphere` y el índice del historial. Para preparar únicamente la base configurada en `.env`:
+Al iniciar se crean las colecciones nuevas y se actualizan mediante `collMod` los validadores anteriores que difieran del esquema. El cambio agrega `riskLevel` como campo obligatorio para nuevos documentos; los documentos históricos se conservan y sus hashes anteriores siguen verificándose, sin rellenar resultados que nunca se guardaron. También se preparan un índice único sobre `hashCode`, otro por fecha, uno geográfico `2dsphere` y el índice del historial. Para preparar únicamente la base configurada en `.env`:
 
 ```bash
 .venv/bin/python -m backend.api.main --init-db
@@ -107,8 +108,9 @@ También puedes insertar directamente con `mongosh`; este ejemplo incluye el has
 db.getSiblingDB("fraud_detection").fraud_reports.insertOne({
   description: "Intento de phishing mediante SMS bancario",
   messageContent: "BANCO: Su cuenta fue bloqueada. Verifique sus datos en https://ejemplo.invalid/verificar",
+  riskLevel: "RIESGO ALTO",
   date: ISODate("2026-10-22T15:30:00Z"),
-  hashCode: "239f798c7f5c19ef56aaa350fcfb8fdecf86dc7c92a8805b3457d234159dfd3e",
+  hashCode: "4f4acc7a03329136c558595c0c636f83ff73fe23380a881f5ed968d3fe88b980",
   location: { type: "Point", coordinates: [-74.0721, 4.7110] }
 });
 ```

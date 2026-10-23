@@ -29,7 +29,8 @@ REPORT_SCHEMA = SCHEMAS["fraud_reports"]
 EVENT_SCHEMA = SCHEMAS["fraud_report_events"]
 STATUSES = tuple(EVENT_SCHEMA["properties"]["status"]["enum"])
 REPORT_FIELDS = set(REPORT_SCHEMA["required"])
-LEGACY_REPORT_FIELDS = REPORT_FIELDS - {"messageContent"}
+UNCLASSIFIED_REPORT_FIELDS = REPORT_FIELDS - {"riskLevel"}
+LEGACY_REPORT_FIELDS = UNCLASSIFIED_REPORT_FIELDS - {"messageContent"}
 
 
 def storage_operation(method):
@@ -77,9 +78,14 @@ def validate_location(value):
 
 
 def report_hash(document):
-    return digest({"description": required_text(document["description"], "description", 2000),
-                   "messageContent": required_text(document["messageContent"], "messageContent", 50000),
-                   "date": iso_date(document["date"]), "location": validate_location(document["location"])})
+    payload = {"description": required_text(document["description"], "description", 2000),
+               "messageContent": required_text(document["messageContent"], "messageContent", 50000),
+               "date": iso_date(document["date"]), "location": validate_location(document["location"])}
+    if "riskLevel" in document:
+        if document["riskLevel"] != "RIESGO ALTO":
+            raise ValueError("Solo se registran reportes con resultado RIESGO ALTO")
+        payload["riskLevel"] = document["riskLevel"]
+    return digest(payload)
 
 
 def legacy_report_hash(document):
@@ -189,6 +195,7 @@ class MongoReports:
         try:
             fields = set(document)
             expected = (report_hash(document) if fields == REPORT_FIELDS else
+                        report_hash(document) if fields == UNCLASSIFIED_REPORT_FIELDS else
                         legacy_report_hash(document) if fields == LEGACY_REPORT_FIELDS else None)
             if (not isinstance(document["_id"], ObjectId) or expected is None
                     or validate_hash(document["hashCode"]) != expected):
@@ -199,11 +206,14 @@ class MongoReports:
 
     @storage_operation
     def create_document(self, data):
-        if set(data) - {"description", "messageContent", "date", "hashCode", "location"}:
-            raise ValueError("Campos permitidos: description, messageContent, date, hashCode, location; _id lo genera MongoDB")
+        if set(data) - {"description", "messageContent", "riskLevel", "date", "hashCode", "location"}:
+            raise ValueError("Campos permitidos: description, messageContent, riskLevel, date, hashCode, location; _id lo genera MongoDB")
+        if data.get("riskLevel") != "RIESGO ALTO":
+            raise ValueError("Solo se registran reportes con resultado RIESGO ALTO")
         document = {"_id": ObjectId(),
                     "description": required_text(data.get("description"), "description", 2000),
                     "messageContent": required_text(data.get("messageContent"), "messageContent", 50000),
+                    "riskLevel": data["riskLevel"],
                     "date": utc_date(data.get("date", datetime.now(timezone.utc))),
                     "location": validate_location(data.get("location"))}
         document["hashCode"] = report_hash(document)

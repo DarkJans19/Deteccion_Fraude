@@ -801,6 +801,16 @@
 .af-result-bajo h2 {
   color: #96d6be;
 }
+.af-report-status {
+  margin: 10px 0 0;
+  color: #a7e2c6;
+  font-size: 11px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.af-report-status.is-error {
+  color: #f4b4c1;
+}
 .af-result-details {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
