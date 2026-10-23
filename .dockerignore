@@ -13,6 +13,6 @@
 **/*.env
 backend/runtime
 backend/url_analysis/data
-backend/url_analysis/artifacts
 backend/message_analysis/data
+backend/**/tests
 **/*.sqlite3*

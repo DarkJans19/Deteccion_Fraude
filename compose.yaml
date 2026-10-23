@@ -1,6 +1,8 @@
 services:
   app:
-    build: .
+    build:
+      context: .
+      target: runtime
     image: deteccion-fraude:local
     init: true
     restart: unless-stopped
@@ -13,6 +15,47 @@ services:
       FRONTEND_ORIGINS: ${FRONTEND_ORIGINS:-http://localhost:${APP_PORT:-8765},http://127.0.0.1:${APP_PORT:-8765}}
     ports:
       - "127.0.0.1:${APP_PORT:-8765}:8765"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 20s
+
+  qr:
+    build:
+      context: .
+      target: qr
+    image: deteccion-fraude-qr:local
+    init: true
+    restart: unless-stopped
+    env_file:
+      - path: ${MONGODB_ENV_FILE:-./.env}
+        format: raw
+    ports:
+      - "127.0.0.1:${QR_PORT:-8000}:8000"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=256m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 20s
+
+  telegram:
+    profiles: [telegram]
+    build:
+      context: .
+      target: telegram
+    image: deteccion-fraude-telegram:local
+    init: true
+    restart: unless-stopped
+    env_file:
+      - path: ${MONGODB_ENV_FILE:-./.env}
+        format: raw
     read_only: true
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=16m

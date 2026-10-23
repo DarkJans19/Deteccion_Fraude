@@ -1,4 +1,4 @@
-"""Cliente pequeno para la consulta en tiempo real de Google Safe Browsing v5."""
+"""Cliente pequeno para la consulta en tiempo real de Google Safe Browsing v4."""
 
 from __future__ import annotations
 
@@ -8,12 +8,21 @@ import time
 from dataclasses import dataclass
 from typing import Callable
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 
-DEFAULT_ENDPOINT = "https://safebrowsing.googleapis.com/v5/urls:search"
+DEFAULT_ENDPOINT = "https://safebrowsing.googleapis.com/v4/threatMatches:find"
 API_KEY_ENV = "GOOGLE_SAFE_BROWSING_API_KEY"
+CLIENT_ID = "deteccion-fraude-url-analysis"
+CLIENT_VERSION = "1.0"
+THREAT_TYPES = (
+    "MALWARE",
+    "SOCIAL_ENGINEERING",
+    "UNWANTED_SOFTWARE",
+    "POTENTIALLY_HARMFUL_APPLICATION",
+)
+PLATFORM_TYPES = ("ANY_PLATFORM",)
+THREAT_ENTRY_TYPES = ("URL",)
 
 
 class SafeBrowsingError(RuntimeError):
@@ -38,7 +47,7 @@ class SafeBrowsingResult:
 
 
 class SafeBrowsingClient:
-    """Consulta URLs completas mediante ``urls.search`` de Safe Browsing v5."""
+    """Consulta URLs completas mediante ``threatMatches.find`` de Safe Browsing v4."""
 
     def __init__(
         self,
@@ -70,14 +79,29 @@ class SafeBrowsingClient:
         if cached is not None and cached[0] > now:
             return cached[1]
 
-        query = urlencode({"urls": url})
+        body = json.dumps(
+            {
+                "client": {
+                    "clientId": CLIENT_ID,
+                    "clientVersion": CLIENT_VERSION,
+                },
+                "threatInfo": {
+                    "threatTypes": list(THREAT_TYPES),
+                    "platformTypes": list(PLATFORM_TYPES),
+                    "threatEntryTypes": list(THREAT_ENTRY_TYPES),
+                    "threatEntries": [{"url": url}],
+                },
+            }
+        ).encode("utf-8")
         request = Request(
-            f"{self._endpoint}?{query}",
+            self._endpoint,
+            data=body,
             headers={
                 "Accept": "application/json",
+                "Content-Type": "application/json",
                 "X-goog-api-key": self._api_key,
             },
-            method="GET",
+            method="POST",
         )
 
         try:
@@ -101,42 +125,54 @@ class SafeBrowsingClient:
         if not isinstance(payload, dict):
             raise SafeBrowsingError("Respuesta inesperada de Google Safe Browsing")
 
-        raw_threats = payload.get("threats", [])
-        if not isinstance(raw_threats, list):
+        raw_matches = payload.get("matches", [])
+        if not isinstance(raw_matches, list):
             raise SafeBrowsingError("Respuesta inesperada de Google Safe Browsing")
 
-        threats: list[dict[str, object]] = []
-        for item in raw_threats:
+        threats_by_url: dict[str, list[str]] = {}
+        durations: list[float] = []
+        for item in raw_matches:
             if not isinstance(item, dict):
                 continue
-            threat_types = item.get("threatTypes", [])
-            threats.append(
-                {
-                    "url": str(item.get("url", "")),
-                    "threat_types": [
-                        str(threat_type)
-                        for threat_type in threat_types
-                        if isinstance(threat_type, str)
-                    ]
-                    if isinstance(threat_types, list)
-                    else [],
-                }
-            )
+            threat = item.get("threat")
+            threat_url = str(threat.get("url", "")) if isinstance(threat, dict) else ""
+            threat_types = threats_by_url.setdefault(threat_url, [])
+            threat_type = item.get("threatType")
+            if isinstance(threat_type, str) and threat_type not in threat_types:
+                threat_types.append(threat_type)
+            duration = _duration_seconds(item.get("cacheDuration"))
+            if duration > 0:
+                durations.append(duration)
 
-        cache_duration = payload.get("cacheDuration")
+        threats = tuple(
+            {"url": threat_url, "threat_types": threat_types}
+            for threat_url, threat_types in threats_by_url.items()
+        )
+        raw_cache_duration = payload.get("cacheDuration")
+        if raw_cache_duration is None and durations:
+            duration = min(durations)
+            raw_cache_duration = f"{duration:g}s"
+        cache_duration = (
+            str(raw_cache_duration) if raw_cache_duration is not None else None
+        )
         result = SafeBrowsingResult(
             is_threat=bool(threats),
-            threats=tuple(threats),
-            cache_duration=str(cache_duration) if cache_duration is not None else None,
+            threats=threats,
+            cache_duration=cache_duration,
         )
 
-        try:
-            duration = float(str(cache_duration).removesuffix("s"))
-        except (TypeError, ValueError):
-            duration = 0.0
-
+        duration = _duration_seconds(cache_duration)
         if duration > 0:
             maximum = 1_800.0 if result.is_threat else 86_400.0
             self._cache[url] = (now + min(duration, maximum), result)
 
         return result
+
+
+def _duration_seconds(value: object) -> float:
+    if value is None:
+        return 0.0
+    try:
+        return float(str(value).removesuffix("s"))
+    except (TypeError, ValueError):
+        return 0.0

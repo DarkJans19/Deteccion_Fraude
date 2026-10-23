@@ -198,7 +198,7 @@ Instala sus dependencias, prepara los datos y entrena el detector híbrido:
 Los datos derivados quedan en `backend/url_analysis/data/processed` y los
 modelos en `backend/url_analysis/artifacts/url_detector`. Para habilitar Google
 Safe Browsing configura `GOOGLE_SAFE_BROWSING_API_KEY`. La integración usa
-`urls.search` v5, que envía la URL completa a Google. Safe Browsing está
+`threatMatches.find` v4, que envía la URL completa a Google. Safe Browsing está
 destinado a uso no comercial; para productos comerciales se debe evaluar Web
 Risk.
 
