@@ -19,7 +19,6 @@ backend/
 ├── qr_analysis/         # lector QR y análisis de comprobantes
 ├── reporting/           # hashing, MongoDB y trazabilidad
 ├── telegram_bot/        # integración con Telegram
-├── whatsapp_bot/        # integración con WhatsApp (whatsapp-web.js)
 └── url_analysis/        # detector de URLs, scripts, datos y pruebas
 ```
 
@@ -327,55 +326,6 @@ ejemplo la IP del host o `http://host.docker.internal:8000/api/analizar`.
 
 El token publicado en el commit original de `telegram-bot` debe revocarse en
 BotFather: retirarlo del archivo actual no lo elimina del historial Git.
-
-## WhatsApp
-
-El bot de `backend/whatsapp_bot` usa `whatsapp-web.js` y reutiliza la misma API.
-Admite texto, imágenes con OCR y códigos QR, y documentos de texto. Consulta
-[su README](backend/whatsapp_bot/README.md) para el detalle.
-
-```powershell
-# Terminal 1: API de análisis
-.venv\Scripts\python.exe -m uvicorn backend.api.main:app --host 127.0.0.1 --port 8000
-
-# Terminal 2: bot
-cd backend\whatsapp_bot
-npm install
-npm start
-```
-
-La primera ejecución muestra un QR en la terminal; escanéalo desde WhatsApp en
-**Dispositivos vinculados**. Si no quieres usar QR, define
-`WHATSAPP_PAIRING_PHONE=573001234567` y el bot imprimirá un código de 8
-caracteres para **Vincular con número de teléfono**. La sesión queda en
-`backend/whatsapp_bot/.wwebjs_auth` (ignorada por Git). El bot usa
-`ANALYSIS_API_URL` y deriva `/api/analizar-imagen`; se puede sobrescribir con
-`WHATSAPP_ANALYSIS_API_URL` y `WHATSAPP_IMAGE_API_URL`.
-
-Para leer texto de imágenes instala Tesseract con los idiomas `spa` y `eng`.
-En Windows, define `TESSERACT_CMD` si no está en el `PATH`. Los paquetes Python
-de OCR y QR ya están en `requirements.txt`.
-
-Por defecto el bot solo responde en chats privados. En grupos requiere mención
-o el prefijo `!analizar` y debe activarse con
-`WHATSAPP_GROUPS_ENABLED=true`; `WHATSAPP_ALLOWED_CHATS` limita los remitentes.
-Con Docker:
-
-```bash
-docker compose --profile whatsapp up -d --build
-docker compose logs -f whatsapp
-```
-
-La API no está incluida en ese perfil; define `WHATSAPP_ANALYSIS_API_URL` con
-una dirección alcanzable desde el contenedor, por ejemplo
-`http://host.docker.internal:8000/api/analizar`.
-
-`whatsapp-web.js` no es una integración oficial: automatiza WhatsApp Web y su
-uso puede incumplir los términos del servicio o provocar bloqueos. Usa un
-número secundario. Audios, videos y PDFs no se procesan todavía; para audios
-haría falta transcripción (por ejemplo Whisper) y para PDFs una librería de
-extracción de texto.
-
 
 ## Agente de Informes y Despacho Automatizado
 

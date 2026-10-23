@@ -57,25 +57,6 @@ FROM runtime AS telegram
 HEALTHCHECK NONE
 CMD ["python", "-m", "backend.telegram_bot.bot"]
 
-# Bot de WhatsApp basado en Node.js y Chromium.
-FROM node:22-bookworm-slim AS whatsapp
-ENV NODE_ENV=production \
-    PUPPETEER_SKIP_DOWNLOAD=true \
-    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium \
-    WHATSAPP_HEADLESS=true
-WORKDIR /app
-RUN apt-get -o Acquire::ForceIPv4=true update \
-    && apt-get install --no-install-recommends --yes \
-        chromium ca-certificates fonts-liberation fonts-dejavu-core \
-    && rm -rf /var/lib/apt/lists/*
-COPY backend/whatsapp_bot/package.json backend/whatsapp_bot/package-lock.json ./
-RUN npm ci --omit=dev --no-audit --no-fund
-COPY --chown=node:node backend/whatsapp_bot/ ./
-RUN mkdir -p /app/.wwebjs_auth /app/.wwebjs_cache \
-    && chown -R node:node /app/.wwebjs_auth /app/.wwebjs_cache
-USER node
-CMD ["node", "index.js"]
-
 # Etapa predeterminada: API principal y dashboard.
 FROM runtime AS api
 ENV HOST=0.0.0.0 \

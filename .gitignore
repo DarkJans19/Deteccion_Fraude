@@ -242,7 +242,5 @@ dataset/
 # Modelos GGUF (pesan ~1.6 GB; GitHub rechaza archivos de más de 100 MB)
 *.gguf
 
-# Bot de WhatsApp
+# Dependencias Node.js
 **/node_modules/
-backend/whatsapp_bot/.wwebjs_auth/
-backend/whatsapp_bot/.wwebjs_cache/
