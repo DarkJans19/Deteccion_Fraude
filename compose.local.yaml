@@ -3,7 +3,7 @@ services:
   app:
     build:
       context: .
-      target: runtime
+      target: api
     image: deteccion-fraude:local
     init: true
     restart: unless-stopped
@@ -74,6 +74,8 @@ services:
     volumes:
       - mongo_data:/data/db
       - ./backend/reporting/database:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "127.0.0.1:27018:27017"
     healthcheck:
       test: ["CMD", "mongosh", "--quiet", "--eval", "quit(db.adminCommand({ping: 1}).ok ? 0 : 1)"]
       interval: 5s

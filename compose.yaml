@@ -2,7 +2,7 @@ services:
   app:
     build:
       context: .
-      target: runtime
+      target: api
     image: deteccion-fraude:local
     init: true
     restart: unless-stopped
