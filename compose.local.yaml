@@ -1,7 +1,9 @@
 # Alternativa a Atlas, independiente de compose.yaml y de sus credenciales.
 services:
   app:
-    build: .
+    build:
+      context: .
+      target: api
     image: deteccion-fraude:local
     init: true
     restart: unless-stopped
@@ -24,6 +26,45 @@ services:
       - ALL
     security_opt:
       - no-new-privileges:true
+
+  qr:
+    build:
+      context: .
+      target: qr
+    image: deteccion-fraude-qr:local
+    init: true
+    restart: unless-stopped
+    environment:
+      GOOGLE_SAFE_BROWSING_API_KEY: ${GOOGLE_SAFE_BROWSING_API_KEY:-}
+      QR_CHECK_REDIRECTS: ${QR_CHECK_REDIRECTS:-true}
+    ports:
+      - "127.0.0.1:${QR_PORT:-8000}:8000"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=256m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+  telegram:
+    profiles: [telegram]
+    build:
+      context: .
+      target: telegram
+    image: deteccion-fraude-telegram:local
+    init: true
+    restart: unless-stopped
+    environment:
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
   mongodb:
     image: mongo:7.0
     restart: unless-stopped
@@ -33,7 +74,9 @@ services:
       MONGO_INITDB_DATABASE: fraud_detection
     volumes:
       - mongo_data:/data/db
-      - ./backend/mongo:/docker-entrypoint-initdb.d:ro
+      - ./backend/reporting/database:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "127.0.0.1:27018:27017"
     healthcheck:
       test: ["CMD", "mongosh", "--quiet", "--eval", "quit(db.adminCommand({ping: 1}).ok ? 0 : 1)"]
       interval: 5s

@@ -25,7 +25,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "python -m backend.tests.serve_dashboard",
+    command: "python -m backend.reporting.tests.serve_dashboard",
     cwd: "../..",
     url: "http://127.0.0.1:18765/api/session",
     reuseExistingServer: false,
