@@ -22,6 +22,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { SpotlightCard } from "@/components/ui/spotlight-card";
 import { ReportTracking } from "@/components/report-tracking";
+import { ReportGenerator } from "@/components/report-generator";
 import {
   Select,
   SelectContent,
@@ -485,6 +486,7 @@ export default function App() {
         {selectedReport?.storage === "mongodb" && (
           <ReportTracking key={selectedReport.id} report={selectedReport} />
         )}
+        <ReportGenerator reports={located} ready={Boolean(ready)} />
         <Card
           className="gap-4 p-5 shadow-none"
           aria-label="Estadísticas por localidad"
