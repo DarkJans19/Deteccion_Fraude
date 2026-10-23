@@ -12,7 +12,7 @@ y alerta cuando el nombre parece una variante tipografica de un dominio oficial.
 Desde la raiz del proyecto:
 
 ```powershell
-.venv\Scripts\python.exe -m backend.payment_receipts.server
+.venv\Scripts\python.exe -m backend.qr_analysis.server
 ```
 
 Se abrira `http://127.0.0.1:8000`. La camara funciona en `localhost`. La
@@ -33,14 +33,13 @@ Opciones utiles:
 
 ```powershell
 # No abrir el navegador automaticamente
-.venv\Scripts\python.exe -m backend.payment_receipts.server --no-browser
+.venv\Scripts\python.exe -m backend.qr_analysis.server --no-browser
 
 # No conectarse a las URLs para resolver redirecciones
-.venv\Scripts\python.exe -m backend.payment_receipts.server --no-redirects
+.venv\Scripts\python.exe -m backend.qr_analysis.server --no-redirects
 ```
 
 La resolucion de redirecciones rechaza credenciales, puertos distintos de 80 y
 443, y destinos locales, privados o no enrutables. Solo consulta cabeceras HTTP
 (o un rango de un byte si el servidor no admite `HEAD`); no ejecuta JavaScript,
 por lo que no detecta redirecciones realizadas exclusivamente por scripts.
-

@@ -16,7 +16,7 @@ backend/
 ├── geography/           # preparación de mapas de Bogotá
 ├── message_analysis/    # modelo GGUF y datasets de SMS/correos
 ├── models/              # análisis combinado de mensajes y enlaces
-├── payment_receipts/    # lector QR y análisis de comprobantes
+├── qr_analysis/         # lector QR y análisis de comprobantes
 ├── reporting/           # hashing, MongoDB y trazabilidad
 ├── telegram_bot/        # integración con Telegram
 └── url_analysis/        # detector de URLs, scripts, datos y pruebas
@@ -188,7 +188,7 @@ Referencias de configuración: [env_file de Compose](https://docs.docker.com/ref
 ## API FastAPI del modelo de fraude
 
 La API usa `backend/models/model.py` y está implementada en
-`backend/api/inference.py`, con la aplicación `app` expuesta desde
+`backend/api/models_api.py`, con la aplicación `app` expuesta desde
 `backend/api/main.py`. Se inicia desde la raíz del proyecto:
 
 ```bash
@@ -253,11 +253,11 @@ El lector decodifica el QR en el navegador, analiza la URL y revisa sus
 redirecciones sin abrir automáticamente el destino:
 
 ```powershell
-.venv\Scripts\python.exe -m backend.payment_receipts.server
+.venv\Scripts\python.exe -m backend.qr_analysis.server
 ```
 
 Requiere que exista el modelo entrenado del módulo de URLs. Consulta las
-[opciones y límites de seguridad](backend/payment_receipts/README.md).
+[opciones y límites de seguridad](backend/qr_analysis/README.md).
 
 ## Mensajes y Telegram
 
