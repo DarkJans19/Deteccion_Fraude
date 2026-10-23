@@ -202,3 +202,40 @@
 @media (prefers-reduced-motion: reduce) {
   .af-app *, .af-app *::before, .af-app *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
+
+.af-about { min-height: calc(100dvh - 80px); padding-bottom: 40px; }
+.af-about-intro { max-width: 760px; margin: 0 auto; padding: 26px 32px 0; display: flex; gap: 10px 18px; align-items: center; flex-wrap: wrap; }
+.af-about-intro a { font-size: 11px; color: #c4baff; display: flex; align-items: center; gap: 6px; margin-left: auto; }
+.af-about-body { max-width: 760px; margin: 60px auto 0; padding: 0 32px; display: flex; flex-direction: column; gap: 28px; }
+.af-about-body h1 { margin: 0; font-size: 44px; line-height: 1.1; font-weight: 700; color: #ffffff; }
+.af-about-body p { margin: 0; font-size: 16px; line-height: 1.8; color: #e5e5e5; }
+@media (max-width: 640px) {
+  .af-about-body { margin-top: 32px; padding: 0 20px; }
+  .af-about-body h1 { font-size: 32px; }
+  .af-about-body p { font-size: 14px; }
+}
+
+
+/* ---- Alerta Bosa: ajustes para el fondo azul noche + naranja ---- */
+.af-topbar { background: rgba(2, 6, 23, .6); }
+/* En la bienvenida el encabezado es transparente para que el brillo se vea completo. */
+.af-is-welcome .af-topbar { background: transparent; border-bottom-color: transparent; backdrop-filter: none; }
+/* Con tres enlaces en el menú, en celulares pequeños solo se ven los íconos. */
+@media (max-width: 480px) {
+  .af-navigation a > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+}
+
+/* ---- Selector de sesión Ciudadano / Admin (modo demo, sin inicio de sesión) ---- */
+.af-role-switch { display: inline-flex; gap: 2px; padding: 3px; border: 1px solid #404040; border-radius: 999px; background: #00000080; }
+.af-role-switch button { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 12px; border: 0; border-radius: 999px; background: transparent; color: #a3a3a3; font-size: 11px; font-weight: 500; }
+.af-role-switch button:hover { color: #ffffff; }
+.af-role-switch button[aria-pressed="true"] { background: #f97316; color: #020617; }
+.af-reports-note { margin-left: auto; font-size: 11px; color: #a3a3a3; }
+@media (max-width: 640px) {
+  .af-reports-note { margin-left: 0; }
+}
+/* En celulares pequeños solo se ven los íconos (el texto sigue disponible para lectores de pantalla). */
+@media (max-width: 480px) {
+  .af-role-switch button { padding: 0 9px; }
+  .af-role-switch button > span, .af-navigation a > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+}

@@ -20,6 +20,8 @@ import {
   ShieldCheck,
   X,
   Info,
+  Lock,
+  User,
 } from "lucide-react";
 import MoonChatComposer from "@/components/ui/ruixen-moon-chat";
 import RadialGlowBackground from "@/components/ui/radial-glow-background";
@@ -30,6 +32,23 @@ import "./LandingDemo.css";
 const Dashboard = lazy(() => import("./App"));
 
 type View = "chat" | "informes" | "about";
+type Role = "ciudadano" | "admin";
+
+// Modo demo: el tipo de sesión se elige en el encabezado, sin inicio de sesión.
+// Ciudadano: chat, historial y Proyecto. Admin: solo Informes.
+const roleViews: Record<Role, View[]> = { ciudadano: ["chat", "about"], admin: ["informes"] };
+const homeView: Record<Role, View> = { ciudadano: "chat", admin: "informes" };
+const viewHash: Record<View, string> = { chat: "#/chat", informes: "#/informes", about: "#/proyecto" };
+const ROLE_KEY = "alerta-bosa-rol";
+
+function readRole(): Role {
+  try {
+    return localStorage.getItem(ROLE_KEY) === "admin" ? "admin" : "ciudadano";
+  } catch {
+    return "ciudadano";
+  }
+}
+
 type Scenario = "revision" | "alto" | "bajo";
 type Turn = {
   id: string;
@@ -82,7 +101,10 @@ function newConversation(): Conversation {
 }
 
 export default function LandingDemo() {
-  const [view, setView] = useState<View>(readView);
+  const [role, setRole] = useState<Role>(readRole);
+  const [requestedView, setView] = useState<View>(readView);
+  // Si la URL pide una vista que no corresponde a la sesión, se muestra la de inicio de esa sesión.
+  const view = roleViews[role].includes(requestedView) ? requestedView : homeView[role];
   const [conversations, setConversations] = useState<Conversation[]>(() => [newConversation()]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
@@ -106,9 +128,27 @@ export default function LandingDemo() {
     return () => window.removeEventListener("hashchange", update);
   }, []);
 
+  useEffect(() => {
+    if (view === requestedView) return;
+    window.history.replaceState(null, "", viewHash[view]);
+    setView(view);
+  }, [view, requestedView]);
+
   useEffect(() => () => {
     if (timer.current !== null) clearTimeout(timer.current);
   }, []);
+
+  function changeRole(next: Role) {
+    if (next === role) return;
+    setRole(next);
+    try {
+      localStorage.setItem(ROLE_KEY, next);
+    } catch {
+      // Sin almacenamiento disponible: la sesión elegida solo dura esta visita.
+    }
+    setSidebarOpen(false);
+    window.location.hash = viewHash[homeView[next]];
+  }
 
   useEffect(() => {
     if (active.turns.length) end.current?.scrollIntoView({ block: "end" });
@@ -186,7 +226,7 @@ El contenido no fue evaluado por un detector.`,
       {view !== "informes" && <RadialGlowBackground />}
       <a className="af-skip" href="#af-content" onClick={(event) => { event.preventDefault(); document.getElementById("af-content")?.focus(); }}>Saltar al contenido</a>
       <header className="af-topbar">
-        <a className="af-brand" href="#/chat" aria-label="Alerta Bosa, inicio">
+        <a className="af-brand" href={viewHash[homeView[role]]} aria-label="Alerta Bosa, inicio">
           <span className="af-brand-icon"><ShieldCheck size={23} aria-hidden="true" /></span>
           <span>Alerta Bosa <small>PREVENCIÓN DIGITAL</small></span>
         </a>
@@ -197,16 +237,30 @@ El contenido no fue evaluado por un detector.`,
             <History size={16} aria-hidden="true" /><span>Consultas</span>
           </button>}
         <nav className="af-navigation" aria-label="Navegación principal">
-          <a href="#/chat" aria-current={view === "chat" ? "page" : undefined}>
-            <MessageSquare size={16} aria-hidden="true" /><span>Chat</span>
-          </a>
-          <a href="#/informes" aria-current={view === "informes" ? "page" : undefined}>
-            <BarChart3 size={16} aria-hidden="true" /><span>Informes</span>
-          </a>
-          <a href="#/proyecto" aria-current={view === "about" ? "page" : undefined}>
-            <Info size={16} aria-hidden="true" /><span>Proyecto</span>
-          </a>
+          {role === "ciudadano" ? (
+            <>
+              <a href="#/chat" aria-current={view === "chat" ? "page" : undefined}>
+                <MessageSquare size={16} aria-hidden="true" /><span>Chat</span>
+              </a>
+              <a href="#/proyecto" aria-current={view === "about" ? "page" : undefined}>
+                <Info size={16} aria-hidden="true" /><span>Proyecto</span>
+              </a>
+            </>
+          ) : (
+            <a href="#/informes" aria-current={view === "informes" ? "page" : undefined}>
+              <BarChart3 size={16} aria-hidden="true" /><span>Informes</span>
+            </a>
+          )}
         </nav>
+        <div className="af-role-switch" role="group" aria-label="Tipo de sesión"
+          title="Modo demostración: aún no hay inicio de sesión">
+          <button type="button" aria-pressed={role === "ciudadano"} onClick={() => changeRole("ciudadano")}>
+            <User size={14} aria-hidden="true" /><span>Ciudadano</span>
+          </button>
+          <button type="button" aria-pressed={role === "admin"} onClick={() => changeRole("admin")}>
+            <Lock size={14} aria-hidden="true" /><span>Admin</span>
+          </button>
+        </div>
         <span className="af-demo-pill"><span /> Prototipo</span>
         </div>
       </header>
@@ -244,7 +298,7 @@ El contenido no fue evaluado por un detector.`,
                 <ShieldCheck size={22} aria-hidden="true" />
                 <h2>Una pausa puede protegerte.</h2>
                 <p>Verifica antes de compartir datos personales, códigos o contraseñas.</p>
-                <a href="#/informes">Explorar informes <ArrowRight size={14} aria-hidden="true" /></a>
+                <a href="#/proyecto">Conoce el proyecto <ArrowRight size={14} aria-hidden="true" /></a>
                 <small>Las consultas son temporales y se borran al recargar.</small>
               </div>
             </aside>
@@ -255,7 +309,7 @@ El contenido no fue evaluado por un detector.`,
           <main id="af-content" tabIndex={-1} className="af-reports">
             <div className="af-reports-intro"><span className="af-eyebrow">INFORMES</span>
               <p>Consulta los reportes del proyecto y su trazabilidad.</p>
-              <a href="#/chat">Volver al chat <ArrowRight size={15} aria-hidden="true" /></a>
+              <span className="af-reports-note">Vista de administración · demo sin inicio de sesión</span>
             </div>
             <Suspense fallback={<p className="af-loading" role="status"><LoaderCircle className="af-spin" size={18} /> Cargando informes…</p>}>
               <Dashboard />
@@ -311,7 +365,6 @@ El contenido no fue evaluado por un detector.`,
                   </button>
                 ))}
                 <a href="#/proyecto"><Info size={16} aria-hidden="true" /> ¿Qué es Alerta Bosa?</a>
-                <a href="#/informes"><BarChart3 size={16} aria-hidden="true" /> Ver informes</a>
                 <button type="button" disabled={busy} onClick={startNew}>
                   <Plus size={16} aria-hidden="true" /> Nueva consulta
                 </button>
