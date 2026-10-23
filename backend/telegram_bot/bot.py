@@ -27,21 +27,9 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 load_dotenv(PROJECT_ROOT / ".env", override=False, interpolate=False)
 
 
-def _url_imagen_por_defecto(url_analisis: str) -> str:
-    base = url_analisis.rstrip("/")
-    sufijo = "/api/analizar"
-    if base.endswith(sufijo):
-        base = base[: -len(sufijo)]
-    return f"{base}/api/analizar-imagen"
-
-
 ANALYSIS_API_URL = (
     os.getenv("ANALYSIS_API_URL") or "http://127.0.0.1:8000/api/analizar"
 ).strip()
-<<<<<<< HEAD
-IMAGE_API_URL = (
-    os.getenv("ANALYSIS_IMAGE_API_URL") or _url_imagen_por_defecto(ANALYSIS_API_URL)
-=======
 
 
 def _derivar_url_imagen(url: str) -> str:
@@ -60,22 +48,15 @@ def _derivar_url_imagen(url: str) -> str:
 
 IMAGE_ANALYSIS_API_URL = (
     os.getenv("TELEGRAM_IMAGE_API_URL") or _derivar_url_imagen(ANALYSIS_API_URL)
->>>>>>> 1b1491b (feat: OCR in docker)
 ).strip()
 try:
     ANALYSIS_TIMEOUT = float(os.getenv("ANALYSIS_API_TIMEOUT") or "120")
 except ValueError:
     ANALYSIS_TIMEOUT = 120.0
 try:
-<<<<<<< HEAD
-    IMAGE_MAX_BYTES = max(1, int(os.getenv("IMAGE_MAX_MB") or "10")) * 1024 * 1024
-except ValueError:
-    IMAGE_MAX_BYTES = 10 * 1024 * 1024
-=======
     MAX_IMAGE_BYTES = max(1, int(os.getenv("IMAGE_MAX_MB") or "10")) * 1024 * 1024
 except ValueError:
     MAX_IMAGE_BYTES = 10 * 1024 * 1024
->>>>>>> 1b1491b (feat: OCR in docker)
 TELEGRAM_MESSAGE_LIMIT = 4096
 
 RISK_LABELS = {
@@ -233,12 +214,8 @@ async def iniciar(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await _responder(
         update,
         "Hola. Soy tu asistente de prevención de fraude.\n\n"
-<<<<<<< HEAD
         "Envíame un mensaje sospechoso, una URL o una imagen con "
         "código QR y lo analizaré.",
-=======
-        "Envíame un mensaje sospechoso, una URL o una imagen y lo analizaré.",
->>>>>>> 1b1491b (feat: OCR in docker)
     )
 
 
@@ -356,7 +333,7 @@ async def analizar_imagen(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     try:
         archivo = await context.bot.get_file(imagen.file_id)
         contenido = bytes(await archivo.download_as_bytearray())
-    except Exception:
+    except TelegramError:
         LOGGER.exception("No se pudo descargar la imagen desde Telegram")
         await _responder(update, "No pude descargar la imagen. Inténtalo nuevamente.")
         return
@@ -380,127 +357,6 @@ async def analizar_imagen(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     )
     if resultado is None:
         return
-    await _responder(update, _formatear_resultado(resultado))
-
-
-async def analizar_imagen(
-    update: Update, context: ContextTypes.DEFAULT_TYPE
-) -> None:
-    message = update.effective_message
-    if message is None:
-        return
-
-    if message.photo:
-        adjunto = message.photo[-1]
-        nombre = "foto.jpg"
-        mime = "image/jpeg"
-    elif (
-        message.document
-        and (message.document.mime_type or "").lower().startswith("image/")
-    ):
-        adjunto = message.document
-        nombre = message.document.file_name or "imagen"
-        mime = message.document.mime_type or "application/octet-stream"
-    else:
-        return
-
-    if adjunto.file_size and adjunto.file_size > IMAGE_MAX_BYTES:
-        await _responder(
-            update,
-            "La imagen supera el tamaño máximo permitido "
-            f"({IMAGE_MAX_BYTES // (1024 * 1024)} MB).",
-        )
-        return
-
-    await _responder(update, "Analizando la imagen y los códigos QR...")
-
-    try:
-        archivo = await context.bot.get_file(adjunto.file_id)
-        data = bytes(await archivo.download_as_bytearray())
-        if len(data) > IMAGE_MAX_BYTES:
-            await _responder(
-                update,
-                "La imagen supera el tamaño máximo permitido "
-                f"({IMAGE_MAX_BYTES // (1024 * 1024)} MB).",
-            )
-            return
-
-        datos = (
-            {"texto": message.caption.strip()}
-            if message.caption and message.caption.strip()
-            else None
-        )
-        async with httpx.AsyncClient(timeout=ANALYSIS_TIMEOUT) as client:
-            respuesta = await client.post(
-                IMAGE_API_URL,
-                files={"imagen": (nombre, data, mime)},
-                data=datos,
-            )
-            respuesta.raise_for_status()
-            resultado = respuesta.json()
-    except TelegramError:
-        LOGGER.exception("No se pudo descargar la imagen desde Telegram")
-        await _responder(
-            update,
-            "No fue posible descargar la imagen desde Telegram. "
-            "Inténtalo nuevamente.",
-        )
-        return
-    except httpx.TimeoutException:
-        LOGGER.warning("El análisis de la imagen agotó el tiempo de espera")
-        await _responder(
-            update,
-            "El análisis de la imagen tardó demasiado. Inténtalo nuevamente.",
-        )
-        return
-    except httpx.HTTPStatusError as error:
-        estado = error.response.status_code
-        detalle = _detalle_error(error.response)
-        LOGGER.warning("La API de imágenes respondió %s: %s", estado, detalle)
-        if estado == 413:
-            mensaje = "La imagen supera el tamaño máximo permitido."
-        elif estado == 415:
-            mensaje = "El archivo debe ser una imagen (JPEG, PNG, etc.)."
-        elif estado == 422:
-            mensaje = (
-                "No se pudo extraer texto ni códigos QR de la imagen. "
-                f"Detalle: {detalle}"
-            )
-        elif estado == 503:
-            mensaje = (
-                "El modelo de análisis no está disponible en este momento. "
-                f"Detalle: {detalle}"
-            )
-        else:
-            mensaje = (
-                "No fue posible analizar la imagen. "
-                f"El servicio respondió con el código {estado}."
-            )
-        await _responder(update, mensaje)
-        return
-    except httpx.HTTPError:
-        LOGGER.exception("Error de conexión con la API de imágenes")
-        await _responder(
-            update,
-            "No fue posible conectar con el servicio de análisis. "
-            "Verifica que la API esté en ejecución.",
-        )
-        return
-    except ValueError:
-        LOGGER.exception("La API de imágenes devolvió una respuesta no válida")
-        await _responder(
-            update,
-            "El servicio de análisis devolvió una respuesta no válida.",
-        )
-        return
-
-    if not isinstance(resultado, dict):
-        await _responder(
-            update,
-            "El servicio de análisis devolvió una respuesta no válida.",
-        )
-        return
-
     await _responder(update, _formatear_imagen(resultado))
 
 
@@ -516,11 +372,7 @@ def main() -> None:
         )
 
     LOGGER.info("API de análisis: %s", ANALYSIS_API_URL)
-<<<<<<< HEAD
-    LOGGER.info("API de imágenes y QR: %s", IMAGE_API_URL)
-=======
     LOGGER.info("API de análisis de imágenes: %s", IMAGE_ANALYSIS_API_URL)
->>>>>>> 1b1491b (feat: OCR in docker)
     bot = Application.builder().token(token).build()
     bot.add_handler(CommandHandler("start", iniciar))
     bot.add_handler(
