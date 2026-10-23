@@ -30,6 +30,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app \
     VIRTUAL_ENV=/opt/venv \
+    TESSERACT_CMD=/usr/bin/tesseract \
+    OCR_LANG=spa+eng \
     PATH=/opt/venv/bin:$PATH
 WORKDIR /app
 RUN apt-get -o Acquire::ForceIPv4=true update \

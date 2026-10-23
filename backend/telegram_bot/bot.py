@@ -9,6 +9,7 @@ import logging
 import os
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit, urlunsplit
 
 import httpx
 from dotenv import load_dotenv
@@ -37,17 +38,44 @@ def _url_imagen_por_defecto(url_analisis: str) -> str:
 ANALYSIS_API_URL = (
     os.getenv("ANALYSIS_API_URL") or "http://127.0.0.1:8000/api/analizar"
 ).strip()
+<<<<<<< HEAD
 IMAGE_API_URL = (
     os.getenv("ANALYSIS_IMAGE_API_URL") or _url_imagen_por_defecto(ANALYSIS_API_URL)
+=======
+
+
+def _derivar_url_imagen(url: str) -> str:
+    """Deriva el endpoint de imagen a partir del endpoint de texto."""
+    try:
+        parsed = urlsplit(url)
+        path = parsed.path.rstrip("/")
+        if path.endswith("/analizar"):
+            path = path[: -len("/analizar")] + "/analizar-imagen"
+        else:
+            path = "/api/analizar-imagen"
+        return urlunsplit((parsed.scheme, parsed.netloc, path, "", ""))
+    except ValueError:
+        return "http://127.0.0.1:8000/api/analizar-imagen"
+
+
+IMAGE_ANALYSIS_API_URL = (
+    os.getenv("TELEGRAM_IMAGE_API_URL") or _derivar_url_imagen(ANALYSIS_API_URL)
+>>>>>>> 1b1491b (feat: OCR in docker)
 ).strip()
 try:
     ANALYSIS_TIMEOUT = float(os.getenv("ANALYSIS_API_TIMEOUT") or "120")
 except ValueError:
     ANALYSIS_TIMEOUT = 120.0
 try:
+<<<<<<< HEAD
     IMAGE_MAX_BYTES = max(1, int(os.getenv("IMAGE_MAX_MB") or "10")) * 1024 * 1024
 except ValueError:
     IMAGE_MAX_BYTES = 10 * 1024 * 1024
+=======
+    MAX_IMAGE_BYTES = max(1, int(os.getenv("IMAGE_MAX_MB") or "10")) * 1024 * 1024
+except ValueError:
+    MAX_IMAGE_BYTES = 10 * 1024 * 1024
+>>>>>>> 1b1491b (feat: OCR in docker)
 TELEGRAM_MESSAGE_LIMIT = 4096
 
 RISK_LABELS = {
@@ -143,6 +171,20 @@ def _formatear_resultado(
     if respuesta_cruda:
         lineas.extend(["", "Detalle del modelo:", respuesta_cruda])
 
+    texto_extraido = str(resultado.get("texto_extraido") or "").strip()
+    if texto_extraido:
+        lineas.extend(["", "Texto detectado en la imagen:", texto_extraido])
+
+    qr_detectados = resultado.get("qr_detectados") or []
+    if isinstance(qr_detectados, list) and qr_detectados:
+        lineas.extend(["", "Contenido de códigos QR:"])
+        lineas.extend(f"- {contenido}" for contenido in qr_detectados if contenido)
+
+    advertencias = resultado.get("advertencias") or []
+    if isinstance(advertencias, list) and advertencias:
+        lineas.extend(["", "Avisos del procesamiento de imagen:"])
+        lineas.extend(f"- {aviso}" for aviso in advertencias if aviso)
+
     lineas.extend(
         [
             "",
@@ -191,9 +233,84 @@ async def iniciar(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await _responder(
         update,
         "Hola. Soy tu asistente de prevención de fraude.\n\n"
+<<<<<<< HEAD
         "Envíame un mensaje sospechoso, una URL o una imagen con "
         "código QR y lo analizaré.",
+=======
+        "Envíame un mensaje sospechoso, una URL o una imagen y lo analizaré.",
+>>>>>>> 1b1491b (feat: OCR in docker)
     )
+
+
+async def _enviar_a_api(
+    update: Update,
+    url: str,
+    *,
+    payload: dict[str, Any] | None = None,
+    files: dict[str, tuple[str, bytes, str]] | None = None,
+    data: dict[str, str] | None = None,
+    es_imagen: bool = False,
+) -> dict[str, Any] | None:
+    try:
+        async with httpx.AsyncClient(timeout=ANALYSIS_TIMEOUT) as client:
+            if files is not None:
+                respuesta = await client.post(url, files=files, data=data)
+            else:
+                respuesta = await client.post(url, json=payload)
+            respuesta.raise_for_status()
+            resultado = respuesta.json()
+    except httpx.TimeoutException:
+        LOGGER.warning("La API de análisis agotó el tiempo de espera")
+        await _responder(update, "El análisis tardó demasiado. Inténtalo nuevamente.")
+        return None
+    except httpx.HTTPStatusError as error:
+        estado = error.response.status_code
+        detalle = _detalle_error(error.response)
+        LOGGER.warning("La API de análisis respondió %s: %s", estado, detalle)
+        if estado == 413 and es_imagen:
+            mensaje = "La imagen supera el tamaño máximo permitido para el análisis."
+        elif estado == 415:
+            mensaje = "El archivo enviado no es una imagen compatible."
+        elif estado == 422 and es_imagen:
+            mensaje = (
+                "No pude extraer texto ni códigos QR de la imagen. "
+                f"{detalle} Si falta Tesseract, instálalo en el servidor de la API "
+                "y configura TESSERACT_CMD allí."
+            )
+        elif estado == 422:
+            mensaje = (
+                "El mensaje no es válido para el análisis. "
+                "Debe tener entre 1 y 50.000 caracteres."
+            )
+        elif estado == 503:
+            mensaje = (
+                "El modelo de análisis no está disponible en este momento. "
+                f"Detalle: {detalle}"
+            )
+        else:
+            mensaje = (
+                "No fue posible analizar el contenido. "
+                f"El servicio respondió con el código {estado}."
+            )
+        await _responder(update, mensaje)
+        return None
+    except httpx.HTTPError:
+        LOGGER.exception("Error de conexión con la API de análisis")
+        await _responder(
+            update,
+            "No fue posible conectar con el servicio de análisis. "
+            "Verifica que la API esté en ejecución y que su URL sea accesible desde el bot.",
+        )
+        return None
+    except ValueError:
+        LOGGER.exception("La API de análisis devolvió una respuesta no válida")
+        await _responder(update, "El servicio de análisis devolvió una respuesta no válida.")
+        return None
+
+    if not isinstance(resultado, dict):
+        await _responder(update, "El servicio de análisis devolvió una respuesta no válida.")
+        return None
+    return resultado
 
 
 async def analizar_mensaje(
@@ -206,66 +323,63 @@ async def analizar_mensaje(
 
     texto = message.text
     await _responder(update, "Analizando tu mensaje...")
+    resultado = await _enviar_a_api(
+        update, ANALYSIS_API_URL, payload={"texto": texto}
+    )
+    if resultado is None:
+        return
+    await _responder(update, _formatear_resultado(resultado))
 
+
+async def analizar_imagen(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    message = update.effective_message
+    if message is None:
+        return
+
+    if message.photo:
+        imagen = message.photo[-1]
+        nombre = "imagen.jpg"
+        tipo = "image/jpeg"
+    elif message.document is not None:
+        imagen = message.document
+        nombre = message.document.file_name or "imagen"
+        tipo = message.document.mime_type or "application/octet-stream"
+    else:
+        return
+
+    if imagen.file_size is not None and imagen.file_size > MAX_IMAGE_BYTES:
+        limite_mb = MAX_IMAGE_BYTES // (1024 * 1024)
+        await _responder(update, f"La imagen supera el límite de {limite_mb} MB.")
+        return
+
+    await _responder(update, "Analizando la imagen con OCR y lectura de códigos QR...")
     try:
-        async with httpx.AsyncClient(timeout=ANALYSIS_TIMEOUT) as client:
-            respuesta = await client.post(
-                ANALYSIS_API_URL,
-                json={"texto": texto},
-            )
-            respuesta.raise_for_status()
-            resultado = respuesta.json()
-    except httpx.TimeoutException:
-        LOGGER.warning("La API de análisis agotó el tiempo de espera")
-        await _responder(
-            update,
-            "El análisis tardó demasiado. Inténtalo nuevamente.",
-        )
-        return
-    except httpx.HTTPStatusError as error:
-        estado = error.response.status_code
-        detalle = _detalle_error(error.response)
-        LOGGER.warning("La API de análisis respondió %s: %s", estado, detalle)
-        if estado == 422:
-            mensaje = (
-                "El mensaje no es válido para el análisis. "
-                "Debe tener entre 1 y 50.000 caracteres."
-            )
-        elif estado == 503:
-            mensaje = (
-                "El modelo de análisis no está disponible en este momento. "
-                f"Detalle: {detalle}"
-            )
-        else:
-            mensaje = (
-                "No fue posible analizar el mensaje. "
-                f"El servicio respondió con el código {estado}."
-            )
-        await _responder(update, mensaje)
-        return
-    except httpx.HTTPError:
-        LOGGER.exception("Error de conexión con la API de análisis")
-        await _responder(
-            update,
-            "No fue posible conectar con el servicio de análisis. "
-            "Verifica que la API esté en ejecución.",
-        )
-        return
-    except ValueError:
-        LOGGER.exception("La API de análisis devolvió una respuesta no válida")
-        await _responder(
-            update,
-            "El servicio de análisis devolvió una respuesta no válida.",
-        )
+        archivo = await context.bot.get_file(imagen.file_id)
+        contenido = bytes(await archivo.download_as_bytearray())
+    except Exception:
+        LOGGER.exception("No se pudo descargar la imagen desde Telegram")
+        await _responder(update, "No pude descargar la imagen. Inténtalo nuevamente.")
         return
 
-    if not isinstance(resultado, dict):
-        await _responder(
-            update,
-            "El servicio de análisis devolvió una respuesta no válida.",
-        )
+    if len(contenido) > MAX_IMAGE_BYTES:
+        limite_mb = MAX_IMAGE_BYTES // (1024 * 1024)
+        await _responder(update, f"La imagen supera el límite de {limite_mb} MB.")
         return
 
+    campos = (
+        {"texto": message.caption.strip()}
+        if message.caption and message.caption.strip()
+        else None
+    )
+    resultado = await _enviar_a_api(
+        update,
+        IMAGE_ANALYSIS_API_URL,
+        files={"imagen": (nombre, contenido, tipo)},
+        data=campos,
+        es_imagen=True,
+    )
+    if resultado is None:
+        return
     await _responder(update, _formatear_resultado(resultado))
 
 
@@ -402,7 +516,11 @@ def main() -> None:
         )
 
     LOGGER.info("API de análisis: %s", ANALYSIS_API_URL)
+<<<<<<< HEAD
     LOGGER.info("API de imágenes y QR: %s", IMAGE_API_URL)
+=======
+    LOGGER.info("API de análisis de imágenes: %s", IMAGE_ANALYSIS_API_URL)
+>>>>>>> 1b1491b (feat: OCR in docker)
     bot = Application.builder().token(token).build()
     bot.add_handler(CommandHandler("start", iniciar))
     bot.add_handler(

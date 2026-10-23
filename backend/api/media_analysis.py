@@ -122,7 +122,9 @@ def _ocr(image) -> tuple[str, list[str]]:
         available = set(pytesseract.get_languages(config=""))
     except Exception:
         return "", [
-            "No se pudo ejecutar Tesseract. Instálalo y define TESSERACT_CMD si es necesario."
+            "No se pudo ejecutar Tesseract. Instala el motor y los idiomas OCR en "
+            "el servidor que ejecuta la API; si no está en PATH, define TESSERACT_CMD "
+            "con la ruta al ejecutable."
         ]
 
     selected = [lang for lang in requested_language.split("+") if lang in available]

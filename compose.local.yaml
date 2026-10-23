@@ -37,6 +37,9 @@ services:
     environment:
       GOOGLE_SAFE_BROWSING_API_KEY: ${GOOGLE_SAFE_BROWSING_API_KEY:-}
       QR_CHECK_REDIRECTS: ${QR_CHECK_REDIRECTS:-true}
+      TESSERACT_CMD: /usr/bin/tesseract
+      OCR_LANG: spa+eng
+      IMAGE_MAX_MB: ${IMAGE_MAX_MB:-10}
     ports:
       - "127.0.0.1:${QR_PORT:-8000}:8000"
     read_only: true
@@ -57,6 +60,12 @@ services:
     restart: unless-stopped
     environment:
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      ANALYSIS_API_URL: http://qr:8000/api/analizar
+      ANALYSIS_API_TIMEOUT: ${ANALYSIS_API_TIMEOUT:-120}
+      IMAGE_MAX_MB: ${IMAGE_MAX_MB:-10}
+    depends_on:
+      qr:
+        condition: service_healthy
     read_only: true
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=16m

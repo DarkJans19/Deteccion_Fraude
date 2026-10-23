@@ -244,6 +244,14 @@ el procesamiento:
 La suite simula Tesseract para no depender del binario del sistema. Si Tesseract
 y el idioma inglés están instalados, también corre una prueba real de lectura.
 
+`pytesseract` es solo el adaptador Python: instala también el motor Tesseract y
+los datos de idioma `spa` y `eng` en la máquina que ejecuta esta API. Si el
+ejecutable no está en el `PATH`, define `TESSERACT_CMD` en el `.env` de esa
+máquina, por ejemplo `TESSERACT_CMD="C:/Program Files/Tesseract-OCR/tesseract.exe"`
+en Windows o `TESSERACT_CMD=/usr/bin/tesseract` en Linux. En Docker, la imagen
+instala esos paquetes y configura la ruta automáticamente. El cliente que
+llame a la API (Telegram, navegador u otro servicio) no necesita tener Tesseract.
+
 La API carga el `.env` de la raíz antes de importar el modelo; las variables
 del proceso tienen prioridad. Usa `MODEL_PATH` para cambiar el GGUF, y
 `URL_MODEL_DIR` para los artefactos del detector de URLs. El archivo GGUF se
@@ -317,12 +325,18 @@ inicia la API del modelo en una terminal aparte:
 El bot lee `TELEGRAM_BOT_TOKEN` y `ANALYSIS_API_URL` del `.env` de la raíz; si
 `ANALYSIS_API_URL` no se define, usa `http://127.0.0.1:8000/api/analizar`.
 `ANALYSIS_API_TIMEOUT` ajusta el tiempo máximo de espera (120 segundos por
-defecto). El bot envía el texto a `/api/analizar` y muestra el `veredicto`, el
-riesgo del mensaje y de cada enlace, y `respuesta_cruda`.
+defecto). Envía texto a `/api/analizar` y fotos o imágenes como archivo a
+`/api/analizar-imagen`; responde con el veredicto y, en imágenes, el texto OCR,
+los QR detectados y las advertencias. `TELEGRAM_IMAGE_API_URL` permite indicar
+un endpoint de imagen distinto, e `IMAGE_MAX_MB` establece el tamaño máximo
+(10 MB por defecto).
 
-Dentro de Docker, `localhost` apunta al propio contenedor del bot. Define
-`ANALYSIS_API_URL` con una dirección alcanzable desde ese contenedor, por
-ejemplo la IP del host o `http://host.docker.internal:8000/api/analizar`.
+Para iniciar el bot junto con la API incluida, ejecuta
+`docker compose --profile telegram up -d --build qr telegram`; Compose conecta
+Telegram al servicio `qr`. Si el bot y la API se ejecutan por separado, configura
+`ANALYSIS_API_URL` con una dirección accesible desde el bot. En Docker,
+`localhost` apunta al propio contenedor, así que se debe usar el nombre del
+servicio o `host.docker.internal`, según dónde corra la API.
 
 El token publicado en el commit original de `telegram-bot` debe revocarse en
 BotFather: retirarlo del archivo actual no lo elimina del historial Git.

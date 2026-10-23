@@ -34,6 +34,9 @@ services:
     env_file:
       - path: ${MONGODB_ENV_FILE:-./.env}
         format: raw
+    environment:
+      TESSERACT_CMD: /usr/bin/tesseract
+      OCR_LANG: spa+eng
     ports:
       - "127.0.0.1:${QR_PORT:-8000}:8000"
     read_only: true
@@ -53,9 +56,15 @@ services:
     image: deteccion-fraude-telegram:local
     init: true
     restart: unless-stopped
-    env_file:
-      - path: ${MONGODB_ENV_FILE:-./.env}
-        format: raw
+    environment:
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      ANALYSIS_API_URL: http://qr:8000/api/analizar
+      TELEGRAM_IMAGE_API_URL: http://qr:8000/api/analizar-imagen
+      ANALYSIS_API_TIMEOUT: ${ANALYSIS_API_TIMEOUT:-120}
+      IMAGE_MAX_MB: ${IMAGE_MAX_MB:-10}
+    depends_on:
+      qr:
+        condition: service_healthy
     read_only: true
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=16m
