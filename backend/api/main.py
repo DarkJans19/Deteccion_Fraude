@@ -54,6 +54,7 @@ def main():
             allowed_hosts=tuple(host.strip() for host in os.getenv("ALLOWED_HOSTS", "").split(",") if host.strip()),
             frontend_origins=tuple(origin.strip() for origin in os.getenv(
                 "FRONTEND_ORIGINS", "http://127.0.0.1:5173,http://localhost:5173").split(",") if origin.strip()),
+            analysis_base_url=os.getenv("ANALYSIS_SERVICE_URL", "http://127.0.0.1:8000"),
         )
     except IntegrityError:
         if client is not None:

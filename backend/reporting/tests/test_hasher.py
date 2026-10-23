@@ -9,6 +9,7 @@ import unittest
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import closing
 from datetime import datetime, timezone
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from backend.reporting.hasher import IntegrityError, Hasher, ReportServer, canonical, digest
@@ -320,6 +321,52 @@ class HTTPTests(unittest.TestCase):
                                           {"Origin": origin, "X-CSRF-Token": "wrong"})[0], 403)
         self.assertEqual(self.request("POST", "/api/reports", self.payload,
                                       {"Origin": "http://127.0.0.1:9000"})[0], 403)
+
+    def test_analysis_api_is_proxied_under_the_dashboard_origin(self):
+        received = []
+
+        class Upstream(BaseHTTPRequestHandler):
+            def log_message(self, format, *args):
+                pass
+
+            def send_json(self, body):
+                raw = json.dumps(body).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(raw)))
+                self.end_headers()
+                self.wfile.write(raw)
+
+            def do_GET(self):
+                received.append(("GET", self.path, b""))
+                self.send_json({"status": "ok"})
+
+            def do_POST(self):
+                body = self.rfile.read(int(self.headers["Content-Length"]))
+                received.append(("POST", self.path, body))
+                self.send_json({"veredicto": "RIESGO BAJO"})
+
+        upstream = ThreadingHTTPServer(("127.0.0.1", 0), Upstream)
+        thread = threading.Thread(target=upstream.serve_forever, daemon=True)
+        thread.start()
+        def cleanup_upstream():
+            upstream.shutdown()
+            upstream.server_close()
+            thread.join()
+        self.addCleanup(cleanup_upstream)
+        self.server.analysis_base_url = f"http://127.0.0.1:{upstream.server_port}"
+
+        self.assertEqual(self.request("GET", "/analysis-api/health"), (200, {"status": "ok"}))
+        status, result = self.request("POST", "/analysis-api/analizar", {"texto": "Mensaje"})
+        self.assertEqual((status, result), (200, {"veredicto": "RIESGO BAJO"}))
+        self.assertEqual(received[0][:2], ("GET", "/api/health"))
+        self.assertEqual(received[1][:2], ("POST", "/api/analizar"))
+        self.assertEqual(json.loads(received[1][2]), {"texto": "Mensaje"})
+        self.assertEqual(
+            self.request("POST", "/analysis-api/analizar", {"texto": "Mensaje"},
+                         {"Origin": "https://attacker.example"})[0],
+            403,
+        )
 
     def test_static_dashboard_and_path_traversal(self):
         (self.static / "geo").mkdir()

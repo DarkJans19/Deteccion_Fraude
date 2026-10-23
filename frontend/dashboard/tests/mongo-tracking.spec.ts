@@ -1,5 +1,11 @@
 import { expect, test } from "@playwright/test";
 
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() =>
+    localStorage.setItem("alerta-bosa-rol", "admin"),
+  );
+});
+
 const reportId = "672a1b2c3d4e5f6789012345";
 const report = {
   _id: { $oid: reportId },

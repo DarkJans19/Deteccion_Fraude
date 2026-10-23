@@ -18,6 +18,9 @@ downloads/
 eggs/
 .eggs/
 lib/
+# El patrón genérico anterior no debe ocultar los módulos TypeScript del dashboard.
+!frontend/dashboard/src/lib/
+!frontend/dashboard/src/lib/*.ts
 lib64/
 parts/
 sdist/

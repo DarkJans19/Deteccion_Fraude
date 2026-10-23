@@ -207,6 +207,34 @@ La aplicación ofrece estos endpoints:
 | POST | `/api/analyze` | Análisis QR con `backend.qr_analysis.service.analyze_qr_url` |
 | GET | `/api/health` | Estado del detector, Safe Browsing y redirecciones |
 
+### Integración con el dashboard
+
+La vista Ciudadano consume todas estas operaciones desde el chat:
+
+- **Analizar mensaje y enlaces** usa `/api/analizar`.
+- **Analizar URL / QR** usa `/api/analyze` y muestra destino, redirecciones y probabilidad.
+- **Generar orientación** usa `/api/respuesta`.
+- El botón de adjuntar acepta imágenes y usa `/api/analizar-imagen` para OCR y códigos QR.
+- El indicador del encabezado consulta `/api/health`.
+
+El navegador accede mediante el prefijo del mismo origen `/analysis-api`. El servidor del
+dashboard lo reenvía a `ANALYSIS_SERVICE_URL` (por defecto
+`http://127.0.0.1:8000`; Compose usa `http://qr:8000`). Esto evita exponer nombres
+internos de Docker y mantiene las políticas de origen. En desarrollo, Vite realiza el
+mismo reenvío; se puede cambiar su destino con `ANALYSIS_API_TARGET`:
+
+```powershell
+# Terminal 1: FastAPI de análisis
+.venv\Scripts\python.exe -m uvicorn backend.api.main:app --host 127.0.0.1 --port 8000
+
+# Terminal 2: API de reportes y dashboard
+.venv\Scripts\python.exe -m backend.api.main
+
+# Terminal 3: Vite (opcional)
+$env:ANALYSIS_API_TARGET = "http://127.0.0.1:8000"
+npm.cmd --prefix frontend/dashboard run dev
+```
+
 La interfaz del lector QR se sirve en `/`: decodifica imágenes y cámara en el
 navegador, y envía la URL detectada a `/api/analyze`.
 
