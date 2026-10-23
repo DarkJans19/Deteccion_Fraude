@@ -12,6 +12,7 @@
 **/.env.*
 **/*.env
 backend/runtime
-backend/data_original
-backend/dataset
+backend/url_analysis/data
+backend/url_analysis/artifacts
+backend/message_analysis/data
 **/*.sqlite3*

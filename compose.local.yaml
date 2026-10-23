@@ -33,7 +33,7 @@ services:
       MONGO_INITDB_DATABASE: fraud_detection
     volumes:
       - mongo_data:/data/db
-      - ./backend/mongo:/docker-entrypoint-initdb.d:ro
+      - ./backend/reporting/database:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD", "mongosh", "--quiet", "--eval", "quit(db.adminCommand({ping: 1}).ok ? 0 : 1)"]
       interval: 5s

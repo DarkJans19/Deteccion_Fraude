@@ -1,6 +1,29 @@
 # Detección de fraude
 
-Dashboard React de reportes en Bogotá y API Python con MongoDB. La imagen Docker compila el dashboard en una etapa Node y sirve el frontend y `/api` desde el mismo proceso Python. El contenedor final usa un usuario sin privilegios y no contiene credenciales, datasets ni herramientas de compilación del frontend.
+Repositorio integrado del dashboard React y de las funcionalidades de detección
+de fraude. La imagen Docker compila el dashboard y sirve el frontend y `/api`
+desde el mismo proceso Python. El contenedor final usa un usuario sin
+privilegios y no contiene credenciales, datasets ni herramientas de compilación
+del frontend.
+
+## Organización del proyecto
+
+Cada funcionalidad del backend vive en un paquete independiente:
+
+```text
+backend/
+├── api/                 # servidor HTTP principal
+├── geography/           # preparación de mapas de Bogotá
+├── message_analysis/    # modelo GGUF y datasets de SMS/correos
+├── payment_receipts/    # lector QR y análisis de comprobantes
+├── reporting/           # hashing, MongoDB y trazabilidad
+├── telegram_bot/        # integración con Telegram
+└── url_analysis/        # detector de URLs, scripts, datos y pruebas
+```
+
+Los datasets de URLs están en `backend/url_analysis/data/raw`; los de mensajes
+están en `backend/message_analysis/data`. Los datos procesados y modelos
+generados no se versionan.
 
 ## Docker con MongoDB Atlas
 
@@ -40,7 +63,7 @@ docker compose -f compose.local.yaml down
 
 MongoDB queda accesible únicamente dentro de la red de Compose y conserva los datos en `mongo_data`, incluso después de `down`. Evita `down -v` si necesitas conservarlos. Esta configuración local usa el usuario de inicialización de MongoDB; Atlas debe usar credenciales propias con acceso a la base de la aplicación. Si cambias la contraseña después de crear el volumen, debes actualizar también el usuario en MongoDB: las variables de inicialización solo se aplican a un volumen nuevo.
 
-El servicio `mongodb` tiene su propio contenedor. Monta `backend/mongo/` para crear las colecciones, validadores e índices en un volumen nuevo. El backend y el script de inicialización usan la misma definición de [schema.json](backend/mongo/schema.json).
+El servicio `mongodb` tiene su propio contenedor. Monta `backend/reporting/database/` para crear las colecciones, validadores e índices en un volumen nuevo. El backend y el script de inicialización usan la misma definición de [schema.json](backend/reporting/database/schema.json).
 
 La configuración local usa `mongo:7.0`, comprobado con este entorno. La imagen `mongo:8.0` probada se detenía al detectar el kernel `7.0.12-linuxkit` de Docker Desktop, por la incompatibilidad [SERVER-121912](https://jira.mongodb.org/browse/SERVER-121912). Esta elección corresponde al servicio local; la configuración principal continúa conectándose a Atlas mediante `.env`.
 
@@ -70,7 +93,7 @@ El patrón `^[a-fA-F0-9]{64}$` solo comprueba que un hash tenga el formato adecu
 Al iniciar se crean las colecciones nuevas y se actualizan mediante `collMod` los validadores anteriores que difieran del esquema. También se preparan un índice único sobre `hashCode`, otro por fecha, uno geográfico `2dsphere` y el índice del historial. Para preparar únicamente la base configurada en `.env`:
 
 ```bash
-.venv/bin/python -m backend.app --init-db
+.venv/bin/python -m backend.api.main --init-db
 ```
 
 Actualizar un validador existente requiere permisos `collMod` sobre la colección. Una vez actualizado, no se vuelve a modificar si ya coincide con el esquema. Las reglas usan `validationLevel: "strict"` y `validationAction: "error"`: se rechazan nuevas escrituras sin `messageContent` o con tipos, longitudes o campos inválidos. Actualizar el validador no reescribe ni comprueba retroactivamente los documentos anteriores, según [la documentación de MongoDB](https://www.mongodb.com/docs/manual/core/schema-validation/update-schema-validation/).
@@ -89,7 +112,7 @@ db.getSiblingDB("fraud_detection").fraud_reports.insertOne({
 });
 ```
 
-Para calcular hashes de otros documentos usa `backend.core.traceability.mongo.report_hash` con `description`, `messageContent`, `date` y `location`. El hash detecta cambios del contenido sin recalcularlo; no es una firma ni garantiza protección frente a quien pueda modificar también los hashes o eliminar documentos en MongoDB. El script de preparación es idempotente: crea cada colección una sola vez y usa `collMod` en las ya existentes.
+Para calcular hashes de otros documentos usa `backend.reporting.mongo.report_hash` con `description`, `messageContent`, `date` y `location`. El hash detecta cambios del contenido sin recalcularlo; no es una firma ni garantiza protección frente a quien pueda modificar también los hashes o eliminar documentos en MongoDB. El script de preparación es idempotente: crea cada colección una sola vez y usa `collMod` en las ya existentes.
 
 ## Registro y seguimiento por API
 
@@ -136,23 +159,23 @@ python3 -m venv .venv
 .venv/bin/pip install -r backend/requirements-test.txt
 npm --prefix frontend/dashboard ci
 npm --prefix frontend/dashboard run build
-.venv/bin/python -m backend.app
+.venv/bin/python -m backend.api.main
 ```
 
-`backend.app` carga el `.env` de la raíz del proyecto; también acepta `--env-file RUTA` como selección explícita. Las variables del proceso tienen prioridad. Para usar Vite, inicia `npm --prefix frontend/dashboard run dev` en otra terminal; los orígenes locales del puerto 5173 están permitidos por defecto.
+`backend.api.main` carga el `.env` de la raíz del proyecto; también acepta `--env-file RUTA` como selección explícita. Las variables del proceso tienen prioridad. Para usar Vite, inicia `npm --prefix frontend/dashboard run dev` en otra terminal; los orígenes locales del puerto 5173 están permitidos por defecto.
 
 Para comprobar la base configurada en el `.env` existente, sin insertar ni modificar datos:
 
 ```bash
-.venv/bin/python -m backend.app --check
+.venv/bin/python -m backend.api.main --check
 ```
 
 Esta comprobación verifica conexión, lectura de reportes y hashes de reportes y seguimientos, sin mostrar credenciales ni contenidos.
 
 ```bash
-.venv/bin/python -m unittest discover -s backend/tests -v
+.venv/bin/python -m unittest discover -s backend/reporting/tests -v
 # Validación real de BSON, índices y esquemas: requiere mongod instalado.
-.venv/bin/python backend/tests/run_mongo_integration.py
+.venv/bin/python backend/reporting/tests/run_mongo_integration.py
 ```
 
 La primera suite usa mongomock para MongoDB. La segunda inicia un `mongod` temporal, ejecuta toda la suite y lo detiene al terminar. Nunca carga las credenciales de Atlas. También puedes definir `TEST_MONGODB_URI` para una instancia de pruebas propia: se crean y eliminan únicamente bases con nombre aleatorio `test_fraud_*`.
@@ -160,3 +183,56 @@ La primera suite usa mongomock para MongoDB. La segunda inicia un `mongod` tempo
 Para navegador, desde `frontend/dashboard`, instala Chromium con `npx playwright install chromium` y ejecuta `npm test`. En Windows, Playwright usa Edge. Las pruebas verifican la vista anterior con SQLite y el contrato del dashboard para documentos MongoDB y seguimiento. Para regenerar la cartografía consulta [el README del dashboard](frontend/dashboard/README.md); las capas preparadas ya se incluyen en la imagen.
 
 Referencias de configuración: [env_file de Compose](https://docs.docker.com/reference/compose-file/services/#env_file), [tipos de fecha de PyMongo](https://www.mongodb.com/docs/languages/python/pymongo-driver/current/data-formats/dates-and-times/) e [índices MongoDB](https://www.mongodb.com/docs/languages/python/pymongo-driver/current/indexes/).
+
+## Análisis de URLs
+
+Instala sus dependencias, prepara los datos y entrena el detector híbrido:
+
+```powershell
+.venv\Scripts\python.exe -m pip install -r backend/url_analysis/requirements.txt
+.venv\Scripts\python.exe -m backend.url_analysis.cli.prepare_dataset
+.venv\Scripts\python.exe -m backend.url_analysis.cli.train_detector
+.venv\Scripts\python.exe -m backend.url_analysis.cli.analyze "https://ejemplo.com"
+```
+
+Los datos derivados quedan en `backend/url_analysis/data/processed` y los
+modelos en `backend/url_analysis/artifacts/url_detector`. Para habilitar Google
+Safe Browsing configura `GOOGLE_SAFE_BROWSING_API_KEY`. La integración usa
+`urls.search` v5, que envía la URL completa a Google. Safe Browsing está
+destinado a uso no comercial; para productos comerciales se debe evaluar Web
+Risk.
+
+## Comprobantes y códigos QR
+
+El lector decodifica el QR en el navegador, analiza la URL y revisa sus
+redirecciones sin abrir automáticamente el destino:
+
+```powershell
+.venv\Scripts\python.exe -m backend.payment_receipts.server
+```
+
+Requiere que exista el modelo entrenado del módulo de URLs. Consulta las
+[opciones y límites de seguridad](backend/payment_receipts/README.md).
+
+## Mensajes y Telegram
+
+Los datasets de SMS/correo se regeneran con:
+
+```powershell
+.venv\Scripts\python.exe -m backend.message_analysis.prepare_dataset
+```
+
+El modelo GGUF se carga desde
+`backend/message_analysis/models/qwen_bosa_antifraude.gguf` o desde la ruta
+indicada por `MODEL_PATH`.
+
+Para ejecutar el bot, instala sus dependencias y configura un token nuevo:
+
+```powershell
+.venv\Scripts\python.exe -m pip install -r backend/telegram_bot/requirements.txt
+$env:TELEGRAM_BOT_TOKEN = "TOKEN_NUEVO"
+.venv\Scripts\python.exe -m backend.telegram_bot.bot
+```
+
+El token publicado en el commit original de `telegram-bot` debe revocarse en
+BotFather: retirarlo del archivo actual no lo elimina del historial Git.
