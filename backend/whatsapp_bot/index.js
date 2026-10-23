@@ -81,6 +81,9 @@ const API_TIMEOUT_MS =
 const MAX_TEXT_CHARS = envInt('WHATSAPP_MAX_TEXT_CHARS', 50_000, 1);
 const MAX_MEDIA_BYTES = envInt('WHATSAPP_MAX_MEDIA_MB', 10, 1) * 1024 * 1024;
 const SESSION_NAME = env('WHATSAPP_SESSION_NAME', 'fraude-bot').trim();
+const PAIRING_PHONE = env('WHATSAPP_PAIRING_PHONE', '')
+  .trim()
+  .replace(/\D/g, '');
 const AUTH_PATH = path.resolve(
   __dirname,
   env('WHATSAPP_AUTH_PATH', '.wwebjs_auth'),
@@ -467,7 +470,7 @@ async function handleMessage(message) {
   }
 }
 
-const client = new Client({
+const clientOptions = {
   authStrategy: new LocalAuth({
     clientId: SESSION_NAME,
     dataPath: AUTH_PATH,
@@ -483,11 +486,28 @@ const client = new Client({
       '--disable-software-rasterizer',
     ],
   },
-});
+};
+
+if (PAIRING_PHONE) {
+  clientOptions.pairWithPhoneNumber = {
+    phoneNumber: PAIRING_PHONE,
+    showNotification: true,
+    intervalMs: 180000,
+  };
+}
+
+const client = new Client(clientOptions);
 
 client.on('qr', (qr) => {
+  if (PAIRING_PHONE) return;
   log('Escanea el código QR con WhatsApp > Dispositivos vinculados:');
   qrcode.generate(qr, { small: true });
+});
+
+client.on('code', (code) => {
+  log('Vinculación sin QR. En WhatsApp abre Dispositivos vinculados >');
+  log('Vincular con número de teléfono e ingresa este código:');
+  log(`  ${code}`);
 });
 
 client.on('authenticated', () => {
@@ -502,6 +522,7 @@ client.on('auth_failure', (message) => {
 client.on('ready', () => {
   const info = client.info || {};
   log(`Bot de WhatsApp listo como ${info.pushname || 'cuenta vinculada'}.`);
+  log(`Vinculación: ${PAIRING_PHONE ? 'código de teléfono' : 'QR'}`);
   log(`API de texto: ${API_URL}`);
   log(`API de imágenes: ${IMAGE_API_URL}`);
 });

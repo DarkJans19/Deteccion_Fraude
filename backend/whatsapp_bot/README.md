@@ -45,6 +45,17 @@ La primera vez aparece un QR en la terminal. Escanéalo desde WhatsApp en
 **Dispositivos vinculados > Vincular un dispositivo**. La sesión se guarda en
 `backend/whatsapp_bot/.wwebjs_auth` y no se versiona.
 
+Si prefieres no escanear un QR, define el número de la cuenta que actuará como
+bot y el bot imprimirá un código de vinculación de 8 caracteres:
+
+```env
+WHATSAPP_PAIRING_PHONE=573001234567
+```
+
+En WhatsApp abre **Dispositivos vinculados > Vincular con número de teléfono**
+e ingresa el código que aparece en la terminal. Sigue siendo la misma
+automatización no oficial de WhatsApp Web; solo cambia la forma de vincular.
+
 ## Variables de entorno
 
 Se leen del `.env` de la raíz. Las principales:
@@ -55,6 +66,7 @@ ANALYSIS_API_URL=http://127.0.0.1:8000/api/analizar
 # WHATSAPP_ANALYSIS_API_URL=http://127.0.0.1:8000/api/analizar
 # WHATSAPP_IMAGE_API_URL=http://127.0.0.1:8000/api/analizar-imagen
 # WHATSAPP_SESSION_NAME=fraude-bot
+# WHATSAPP_PAIRING_PHONE=573001234567
 # WHATSAPP_GROUPS_ENABLED=false
 # WHATSAPP_GROUP_TRIGGER=!analizar
 # WHATSAPP_ALLOWED_CHATS=573001234567,573007654321

@@ -345,7 +345,9 @@ npm start
 ```
 
 La primera ejecución muestra un QR en la terminal; escanéalo desde WhatsApp en
-**Dispositivos vinculados**. La sesión queda en
+**Dispositivos vinculados**. Si no quieres usar QR, define
+`WHATSAPP_PAIRING_PHONE=573001234567` y el bot imprimirá un código de 8
+caracteres para **Vincular con número de teléfono**. La sesión queda en
 `backend/whatsapp_bot/.wwebjs_auth` (ignorada por Git). El bot usa
 `ANALYSIS_API_URL` y deriva `/api/analizar-imagen`; se puede sobrescribir con
 `WHATSAPP_ANALYSIS_API_URL` y `WHATSAPP_IMAGE_API_URL`.
