@@ -223,7 +223,7 @@ El contenido no fue evaluado por un detector.`,
 
   return (
     <div className={`af-app ${view === "chat" && !active.turns.length ? "af-is-welcome" : ""}`}>
-      {view !== "informes" && <RadialGlowBackground />}
+          <RadialGlowBackground />
       <a className="af-skip" href="#af-content" onClick={(event) => { event.preventDefault(); document.getElementById("af-content")?.focus(); }}>Saltar al contenido</a>
       <header className="af-topbar">
         <a className="af-brand" href={viewHash[homeView[role]]} aria-label="Alerta Bosa, inicio">

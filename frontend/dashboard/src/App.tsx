@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { SpotlightCard } from "@/components/ui/spotlight-card";
 import { ReportTracking } from "@/components/report-tracking";
 import {
   Select,
@@ -32,6 +33,7 @@ import {
   api,
   date,
   normalizeReport,
+  verdict,
   type MongoReport,
   type Report,
 } from "@/lib/reports";
@@ -43,6 +45,11 @@ import {
   type GeoManifest,
 } from "@/lib/geography";
 import { cn } from "@/lib/utils";
+
+// Mismo brillo naranja de las tarjetas de la página Proyecto.
+const SPOTLIGHT = "#f9731640";
+const BOSA = "07";
+
 
 const BogotaMap = lazy(() =>
   import("@/components/bogota-map").then(({ BogotaMap }) => ({
@@ -156,6 +163,19 @@ export default function App() {
   );
   const ready = geography && !loading && !error;
   const selectedReport = reports.find((report) => report.id === selectedId);
+  // Resumen de todos los reportes (no depende de la búsqueda ni del filtro).
+  const summary = useMemo(() => {
+    const all = countLocalities(located);
+    const top = geography?.localities.features
+      .map(({ properties }) => ({ name: properties.name, count: all[properties.code] ?? 0 }))
+      .sort((a, b) => b.count - a.count)[0];
+    return {
+      total: reports.length,
+      bosa: all[BOSA] ?? 0,
+      top: top && top.count > 0 ? `${top.name} (${top.count})` : "Sin datos aún",
+      fraud: reports.filter((report) => verdict(report) === "fraude").length,
+    };
+  }, [located, geography, reports]);
 
   const selectLocality = useCallback((code: string) => {
     setLocality(code);
@@ -214,6 +234,24 @@ export default function App() {
             <RefreshCw className={cn("size-4", loading && "animate-spin")} />
             Actualizar
           </Button>
+        </div>
+        <div className="af-stat-grid" aria-label="Resumen de reportes">
+          <SpotlightCard className="af-stat-card" spotlightColor={SPOTLIGHT}>
+            <span className="af-stat-label">Reportes registrados</span>
+            <span className="af-stat-value">{ready ? summary.total : "—"}</span>
+          </SpotlightCard>
+          <SpotlightCard className="af-stat-card" spotlightColor={SPOTLIGHT}>
+            <span className="af-stat-label">Reportes en Bosa</span>
+            <span className="af-stat-value">{ready ? summary.bosa : "—"}</span>
+          </SpotlightCard>
+          <SpotlightCard className="af-stat-card" spotlightColor={SPOTLIGHT}>
+            <span className="af-stat-label">Localidad con más reportes</span>
+            <span className="af-stat-value is-text">{ready ? summary.top : "—"}</span>
+          </SpotlightCard>
+          <SpotlightCard className="af-stat-card" spotlightColor={SPOTLIGHT}>
+            <span className="af-stat-label">Positivos para fraude</span>
+            <span className="af-stat-value">{ready ? summary.fraud : "—"}</span>
+          </SpotlightCard>
         </div>
         {error && (
           <div

@@ -239,3 +239,41 @@
   .af-role-switch button { padding: 0 9px; }
   .af-role-switch button > span, .af-navigation a > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
 }
+
+/* ---- Admin (Informes) con el formato de Proyecto: azul noche + naranja, sin morado ----
+   Se cambian las variables de color solo mientras se ve Informes. `:root:has(...)` cubre
+   también los menús desplegables, que se dibujan fuera de .af-reports. */
+:root:has(.af-reports), .af-reports {
+  --background: #020617;
+  --foreground: #f8fafc;
+  --card: #0b1630;
+  --card-foreground: #f8fafc;
+  --popover: #0b1630;
+  --popover-foreground: #f8fafc;
+  --primary: #f97316;
+  --primary-foreground: #020617;
+  --brand: #f97316;
+  --secondary: #13234a;
+  --secondary-foreground: #dbeafe;
+  --muted: #13234a;
+  --muted-foreground: #94a3b8;
+  --accent: #1e3a8a;
+  --accent-foreground: #dbeafe;
+  --border: #1e293b;
+  --input: #1e293b;
+  --ring: #fb923c;
+}
+.af-reports-intro .af-eyebrow { color: #fdba74; }
+
+/* Tarjetas que se iluminan (mismo estilo que las de Proyecto) */
+.af-stat-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.af-stat-card { display: flex; flex-direction: column; gap: 8px; border-color: #1e293b; background: rgba(11, 22, 48, .85); }
+.af-stat-label { font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: #94a3b8; }
+.af-stat-value { font-size: 32px; line-height: 1.1; font-weight: 800; color: #f97316; }
+.af-stat-value.is-text { font-size: 20px; line-height: 1.4; color: #93c5fd; }
+@media (max-width: 1024px) {
+  .af-stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 520px) {
+  .af-stat-grid { grid-template-columns: 1fr; }
+}
