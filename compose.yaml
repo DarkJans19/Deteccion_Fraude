@@ -38,7 +38,7 @@ services:
       - "127.0.0.1:${QR_PORT:-8000}:8000"
     read_only: true
     tmpfs:
-      - /tmp:rw,noexec,nosuid,size=256m
+      - /tmp:rw,noexec,nosuid,size=16m
     cap_drop:
       - ALL
     security_opt:
@@ -64,3 +64,34 @@ services:
     security_opt:
       - no-new-privileges:true
     stop_grace_period: 20s
+
+  whatsapp:
+    profiles: [whatsapp]
+    build:
+      context: .
+      target: whatsapp
+    image: deteccion-fraude-whatsapp:local
+    init: true
+    restart: unless-stopped
+    env_file:
+      - path: ${MONGODB_ENV_FILE:-./.env}
+        format: raw
+    environment:
+      WHATSAPP_ANALYSIS_API_URL: ${WHATSAPP_ANALYSIS_API_URL:-http://host.docker.internal:8000/api/analizar}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - whatsapp_auth:/app/.wwebjs_auth
+      - whatsapp_cache:/app/.wwebjs_cache
+    shm_size: 512mb
+    tmpfs:
+      - /tmp:rw,nosuid,size=512m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 30s
+
+volumes:
+  whatsapp_auth:
+  whatsapp_cache:

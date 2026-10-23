@@ -64,6 +64,29 @@ services:
     security_opt:
       - no-new-privileges:true
 
+  whatsapp:
+    profiles: [whatsapp]
+    build:
+      context: .
+      target: whatsapp
+    image: deteccion-fraude-whatsapp:local
+    init: true
+    restart: unless-stopped
+    environment:
+      WHATSAPP_ANALYSIS_API_URL: ${WHATSAPP_ANALYSIS_API_URL:-http://host.docker.internal:8000/api/analizar}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - whatsapp_auth:/app/.wwebjs_auth
+      - whatsapp_cache:/app/.wwebjs_cache
+    shm_size: 512mb
+    tmpfs:
+      - /tmp:rw,nosuid,size=512m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
   mongodb:
     image: mongo:7.0
     restart: unless-stopped
@@ -84,3 +107,5 @@ services:
       start_period: 10s
 volumes:
   mongo_data:
+  whatsapp_auth:
+  whatsapp_cache:

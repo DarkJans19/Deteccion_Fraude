@@ -19,6 +19,7 @@ backend/
 ├── payment_receipts/    # lector QR y análisis de comprobantes
 ├── reporting/           # hashing, MongoDB y trazabilidad
 ├── telegram_bot/        # integración con Telegram
+├── whatsapp_bot/        # integración con WhatsApp (whatsapp-web.js)
 └── url_analysis/        # detector de URLs, scripts, datos y pruebas
 ```
 
@@ -188,7 +189,7 @@ Referencias de configuración: [env_file de Compose](https://docs.docker.com/ref
 ## API FastAPI del modelo de fraude
 
 La API usa `backend/models/model.py` y está implementada en
-`backend/api/inference.py`, con la aplicación `app` expuesta desde
+`backend/api/models_api.py`, con la aplicación `app` expuesta desde
 `backend/api/main.py`. Se inicia desde la raíz del proyecto:
 
 ```bash
@@ -196,11 +197,12 @@ La API usa `backend/models/model.py` y está implementada en
 .venv/bin/python -m uvicorn backend.api.main:app --host 127.0.0.1 --port 8000
 ```
 
-La aplicación expone únicamente dos endpoints:
+La aplicación expone estos endpoints:
 
 | Método | Ruta | Método del modelo |
 | --- | --- | --- |
 | POST | `/api/analizar` | `predecir_async(texto)`, que ejecuta `predecir` en otro hilo |
+| POST | `/api/analizar-imagen` | OCR y QR de una imagen, y luego `predecir_async(texto)` |
 | POST | `/api/respuesta` | `generar(texto, max_tokens)` |
 
 ```bash
@@ -214,6 +216,13 @@ La predicción devuelve todos los campos de `Prediccion`: `es_fraude`,
 `analisis_urls`. Los resultados no concluyentes conservan `es_fraude: null`.
 `/api/respuesta` recibe `texto` y, opcionalmente, `max_tokens` (60 por defecto,
 entre 1 y 512); devuelve `respuesta_cruda`.
+
+`/api/analizar-imagen` recibe un `multipart/form-data` con el campo `imagen` y,
+opcionalmente, `texto` como pie de foto. Extrae texto con Tesseract, decodifica
+códigos QR con OpenCV y analiza la combinación con el mismo modelo. Devuelve la
+predicción completa más `texto_extraido`, `qr_detectados` y `advertencias`. Si
+no hay Tesseract u OpenCV, la API sigue funcionando y reporta la limitación en
+`advertencias`; una imagen sin texto ni QR devuelve 422.
 
 La API carga el `.env` de la raíz antes de importar el modelo; las variables
 del proceso tienen prioridad. Usa `MODEL_PATH` para cambiar el GGUF, y
@@ -309,13 +318,72 @@ Las pruebas de esta integración no cargan modelos ni consultan la red:
 .venv/bin/python -m unittest discover -s backend/models/tests -v
 ```
 
-Para ejecutar el bot, instala sus dependencias y configura un token nuevo:
+Para ejecutar el bot, instala sus dependencias, configura un token nuevo e
+inicia la API del modelo en una terminal aparte:
 
 ```powershell
-.venv\Scripts\python.exe -m pip install -r requirements.txt
-$env:TELEGRAM_BOT_TOKEN = "TOKEN_NUEVO"
+# Terminal 1: API de análisis
+.venv\Scripts\python.exe -m uvicorn backend.api.main:app --host 127.0.0.1 --port 8000
+
+# Terminal 2: bot
 .venv\Scripts\python.exe -m backend.telegram_bot.bot
 ```
 
+El bot lee `TELEGRAM_BOT_TOKEN` y `ANALYSIS_API_URL` del `.env` de la raíz; si
+`ANALYSIS_API_URL` no se define, usa `http://127.0.0.1:8000/api/analizar`.
+`ANALYSIS_API_TIMEOUT` ajusta el tiempo máximo de espera (120 segundos por
+defecto). El bot envía el texto a `/api/analizar` y muestra el `veredicto`, el
+riesgo del mensaje y de cada enlace, y `respuesta_cruda`.
+
+Dentro de Docker, `localhost` apunta al propio contenedor del bot. Define
+`ANALYSIS_API_URL` con una dirección alcanzable desde ese contenedor, por
+ejemplo la IP del host o `http://host.docker.internal:8000/api/analizar`.
+
 El token publicado en el commit original de `telegram-bot` debe revocarse en
 BotFather: retirarlo del archivo actual no lo elimina del historial Git.
+
+## WhatsApp
+
+El bot de `backend/whatsapp_bot` usa `whatsapp-web.js` y reutiliza la misma API.
+Admite texto, imágenes con OCR y códigos QR, y documentos de texto. Consulta
+[su README](backend/whatsapp_bot/README.md) para el detalle.
+
+```powershell
+# Terminal 1: API de análisis
+.venv\Scripts\python.exe -m uvicorn backend.api.main:app --host 127.0.0.1 --port 8000
+
+# Terminal 2: bot
+cd backend\whatsapp_bot
+npm install
+npm start
+```
+
+La primera ejecución muestra un QR en la terminal; escanéalo desde WhatsApp en
+**Dispositivos vinculados**. La sesión queda en
+`backend/whatsapp_bot/.wwebjs_auth` (ignorada por Git). El bot usa
+`ANALYSIS_API_URL` y deriva `/api/analizar-imagen`; se puede sobrescribir con
+`WHATSAPP_ANALYSIS_API_URL` y `WHATSAPP_IMAGE_API_URL`.
+
+Para leer texto de imágenes instala Tesseract con los idiomas `spa` y `eng`.
+En Windows, define `TESSERACT_CMD` si no está en el `PATH`. Los paquetes Python
+de OCR y QR ya están en `requirements.txt`.
+
+Por defecto el bot solo responde en chats privados. En grupos requiere mención
+o el prefijo `!analizar` y debe activarse con
+`WHATSAPP_GROUPS_ENABLED=true`; `WHATSAPP_ALLOWED_CHATS` limita los remitentes.
+Con Docker:
+
+```bash
+docker compose --profile whatsapp up -d --build
+docker compose logs -f whatsapp
+```
+
+La API no está incluida en ese perfil; define `WHATSAPP_ANALYSIS_API_URL` con
+una dirección alcanzable desde el contenedor, por ejemplo
+`http://host.docker.internal:8000/api/analizar`.
+
+`whatsapp-web.js` no es una integración oficial: automatiza WhatsApp Web y su
+uso puede incumplir los términos del servicio o provocar bloqueos. Usa un
+número secundario. Audios, videos y PDFs no se procesan todavía; para audios
+haría falta transcripción (por ejemplo Whisper) y para PDFs una librería de
+extracción de texto.
