@@ -173,6 +173,34 @@
 .af-navigation a[href="#/informes"] {
   border: 1px solid #404040;
 }
+.af-telegram-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid #2aabee80;
+  border-radius: 8px;
+  color: #8ed8ff;
+  font-size: 12px;
+  white-space: nowrap;
+  transition:
+    background-color 0.2s,
+    border-color 0.2s,
+    color 0.2s;
+}
+.af-telegram-link:hover {
+  border-color: #2aabee;
+  background: #2aabee1f;
+  color: #ffffff;
+}
+.af-telegram-link:focus-visible {
+  outline: 2px solid #8ed8ff;
+  outline-offset: 2px;
+}
+.af-telegram-link svg {
+  flex-shrink: 0;
+}
 .af-history-toggle {
   border: 0;
   background: transparent;
@@ -279,6 +307,71 @@
   font-size: 16px;
   line-height: 24px;
   color: #e5e5e5;
+}
+.af-telegram-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 24px;
+  padding: 12px 16px;
+  border: 1px solid #2aabee;
+  border-radius: 12px;
+  background: #2aabee1f;
+  color: #ffffff;
+  text-align: left;
+  box-shadow: 0 0 24px #2aabee1a;
+  transition:
+    background-color 0.2s,
+    transform 0.2s,
+    box-shadow 0.2s;
+}
+.af-telegram-cta:hover {
+  background: #2aabee33;
+  box-shadow: 0 0 30px #2aabee33;
+  transform: translateY(-1px);
+}
+.af-telegram-cta:focus-visible {
+  outline: 2px solid #8ed8ff;
+  outline-offset: 3px;
+}
+.af-telegram-cta-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #2aabee;
+  color: #ffffff;
+}
+.af-telegram-cta > span:nth-child(2) {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.af-telegram-cta strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+.af-telegram-cta small {
+  color: #bae6fd;
+  font-size: 10px;
+}
+.af-telegram-cta > svg {
+  margin-left: 6px;
+  color: #8ed8ff;
+}
+.af-telegram-web-link {
+  display: block;
+  width: fit-content;
+  margin: 10px auto 0;
+  color: #a3a3a3;
+  font-size: 10px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.af-telegram-web-link:hover {
+  color: #bae6fd;
 }
 /* max-w-3xl (768 px) y mb-[20vh], como en la referencia. */
 .af-composer-area {
@@ -891,6 +984,17 @@
   .af-header-actions {
     gap: 2px;
   }
+  .af-telegram-link {
+    padding: 8px;
+  }
+  .af-telegram-link > span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
   .af-layout,
   .af-chat {
     min-height: calc(100dvh - 72px);
@@ -914,6 +1018,14 @@
     font-size: 14px;
     line-height: 22px;
     max-width: 350px;
+  }
+  .af-telegram-cta {
+    width: 100%;
+    max-width: 350px;
+    margin-top: 18px;
+  }
+  .af-telegram-cta > svg {
+    margin-left: auto;
   }
   .af-quick-actions {
     gap: 10px;

@@ -39,6 +39,25 @@ import "./LandingDemo.css";
 // Reutiliza el dashboard actual y lo carga al abrir Informes.
 const Dashboard = lazy(() => import("./App"));
 
+const TELEGRAM_BOT_URL =
+  import.meta.env.VITE_TELEGRAM_BOT_URL?.trim() ||
+  "https://web.telegram.org/a/#8758365079";
+const TELEGRAM_WEB_URL = "https://t.me/AlertaBosaBot";
+
+function TelegramIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg
+      aria-hidden="true"
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+    >
+      <path d="M21.7 2.3a1.1 1.1 0 0 0-1.1-.2L2.7 9a1.1 1.1 0 0 0 .1 2.1l4.5 1.5 1.7 5.2a1.1 1.1 0 0 0 1.9.4l2.5-2.6 4.6 3.4a1.1 1.1 0 0 0 1.7-.7l2.4-15a1.1 1.1 0 0 0-.4-1Zm-3.8 4.1-8.1 7.3-.3 2.1-1.1-3.5 9.5-5.9Z" />
+    </svg>
+  );
+}
+
 type View = "chat" | "informes" | "about";
 type Role = "ciudadano" | "admin";
 
@@ -531,6 +550,17 @@ export default function LandingDemo() {
               </a>
             )}
           </nav>
+          <a
+            className="af-telegram-link"
+            href={TELEGRAM_BOT_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Abrir el chat de Alerta Bosa Bot en Telegram"
+            title="Abrir Alerta Bosa Bot"
+          >
+            <TelegramIcon />
+            <span>Telegram</span>
+          </a>
           <div
             className="af-role-switch"
             role="group"
@@ -694,6 +724,29 @@ export default function LandingDemo() {
                     mensajes, enlaces y llamadas sospechosas antes de pagar,
                     responder o compartir un código.
                   </p>
+                  <a
+                    className="af-telegram-cta"
+                    href={TELEGRAM_BOT_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <span className="af-telegram-cta-icon">
+                      <TelegramIcon size={22} />
+                    </span>
+                    <span>
+                      <strong>Hablar con Alerta Bosa Bot</strong>
+                      <small>Abre directamente el chat @AlertaBosaBot</small>
+                    </span>
+                    <ArrowRight size={18} aria-hidden="true" />
+                  </a>
+                  <a
+                    className="af-telegram-web-link"
+                    href={TELEGRAM_WEB_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    ¿Telegram no se abrió? Usar enlace web
+                  </a>
                 </section>
               ) : (
                 <section className="af-conversation" aria-label="Conversación">

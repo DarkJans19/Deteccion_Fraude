@@ -365,6 +365,8 @@ def main() -> None:
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
         level=logging.INFO,
     )
+    # httpx incluye la URL completa de Telegram (con el token) en sus logs INFO.
+    logging.getLogger("httpx").setLevel(logging.WARNING)
     token = os.getenv("TELEGRAM_BOT_TOKEN")
     if not token:
         raise SystemExit(
