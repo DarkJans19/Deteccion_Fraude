@@ -50,7 +50,7 @@ ENV HOST=0.0.0.0 \
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=8).read()"]
-CMD ["python", "-m", "backend.payment_receipts.server", "--host", "0.0.0.0", "--port", "8000", "--no-browser"]
+CMD ["python", "-m", "backend.qr_analysis.server", "--host", "0.0.0.0", "--port", "8000", "--no-browser"]
 
 # Bot opcional, activado mediante el perfil telegram de Compose.
 FROM runtime AS telegram

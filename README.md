@@ -16,7 +16,7 @@ backend/
 ├── geography/           # preparación de mapas de Bogotá
 ├── message_analysis/    # modelo GGUF y datasets de SMS/correos
 ├── models/              # análisis combinado de mensajes y enlaces
-├── payment_receipts/    # lector QR y análisis de comprobantes
+├── qr_analysis/         # lector QR y análisis de comprobantes
 ├── reporting/           # hashing, MongoDB y trazabilidad
 ├── telegram_bot/        # integración con Telegram
 ├── whatsapp_bot/        # integración con WhatsApp (whatsapp-web.js)
@@ -190,6 +190,7 @@ Referencias de configuración: [env_file de Compose](https://docs.docker.com/ref
 
 La API usa `backend/models/model.py` y está implementada en
 `backend/api/models_api.py`, con la aplicación `app` expuesta desde
+`backend/api/models_api.py`, con la aplicación `app` expuesta desde
 `backend/api/main.py`. Se inicia desde la raíz del proyecto:
 
 ```bash
@@ -262,11 +263,11 @@ El lector decodifica el QR en el navegador, analiza la URL y revisa sus
 redirecciones sin abrir automáticamente el destino:
 
 ```powershell
-.venv\Scripts\python.exe -m backend.payment_receipts.server
+.venv\Scripts\python.exe -m backend.qr_analysis.server
 ```
 
 Requiere que exista el modelo entrenado del módulo de URLs. Consulta las
-[opciones y límites de seguridad](backend/payment_receipts/README.md).
+[opciones y límites de seguridad](backend/qr_analysis/README.md).
 
 ## Mensajes y Telegram
 
@@ -279,44 +280,6 @@ Los datasets de SMS/correo se regeneran con:
 El modelo GGUF se carga desde
 `backend/message_analysis/models/qwen_bosa_antifraude.gguf` o desde la ruta
 indicada por `MODEL_PATH`.
-
-Para combinar mensajes y enlaces usa `backend.models.model`. Este módulo carga
-Qwen desde `backend/models/qwen_bosa_antifraude.gguf` (o `MODEL_PATH`), extrae
-URLs por RegEx y ejecuta el detector de URLs existente:
-
-```python
-from backend.models.model import get_model
-
-resultado = get_model().predecir("Revisa tu cuenta en https://ejemplo.com/validar")
-print(resultado.veredicto)
-```
-
-| Riesgo del mensaje | Riesgo de URL | Resultado combinado |
-| --- | --- | --- |
-| ALTO | ALTO | RIESGO ALTO |
-| ALTO | BAJO | RIESGO NO CONCLUYENTE |
-| ALTO | NO CONCLUYENTE | RIESGO ALTO |
-| BAJO | ALTO | RIESGO ALTO |
-| BAJO | BAJO | RIESGO BAJO |
-| BAJO | NO CONCLUYENTE | RIESGO NO CONCLUYENTE |
-
-Si la entrada contiene únicamente uno o varios enlaces, se ejecuta solo el
-analizador de URLs y su riesgo determina el resultado general, sin ejecutar Qwen.
-Sin URLs se conserva el riesgo del mensaje. Con varios enlaces se prioriza
-ALTO, seguido de NO CONCLUYENTE y BAJO. El resultado `review` del detector y
-los errores al analizar un enlace se consideran NO CONCLUYENTE. El detector
-entrenado debe existir en `backend/url_analysis/artifacts/url_detector`; puedes
-cambiar esa ruta con `URL_MODEL_DIR` o `FraudModel(url_model_dir=...)`.
-`es_fraude` vale `True` para ALTO, `False` para BAJO y `None` para NO CONCLUYENTE.
-`respuesta_cruda` conserva la respuesta de Qwen (vacía si solo hay enlaces);
-`veredicto` contiene el resultado
-combinado. `predecir_async` aplica las mismas reglas.
-
-Las pruebas de esta integración no cargan modelos ni consultan la red:
-
-```bash
-.venv/bin/python -m unittest discover -s backend/models/tests -v
-```
 
 Para ejecutar el bot, instala sus dependencias, configura un token nuevo e
 inicia la API del modelo en una terminal aparte:
@@ -387,3 +350,54 @@ uso puede incumplir los términos del servicio o provocar bloqueos. Usa un
 número secundario. Audios, videos y PDFs no se procesan todavía; para audios
 haría falta transcripción (por ejemplo Whisper) y para PDFs una librería de
 extracción de texto.
+
+
+## Agente de Informes y Despacho Automatizado
+
+El agente (`backend.reporting.agent`) analiza reportes de fraude en MongoDB en modo de **estricta solo lectura**, genera informes reproducibles en **PDF y JSON** con métricas auditables y despacha el informe por correo electrónico respetando controles estrictos de autorización e idempotencia.
+
+### Ejecución Interactiva (CLI)
+
+Ejecuta el agente desde la terminal (Windows PowerShell):
+
+```powershell
+& "backend/.venv/Scripts/python.exe" -m backend.reporting.agent.cli
+```
+
+El flujo interactivo te solicitará:
+1. `start_date` (formato `DD/MM/AAAA`).
+2. `end_date` (formato `DD/MM/AAAA`, mínimo un mes calendario posterior).
+3. Resumen y estado de generación del PDF y JSON.
+4. `recipient_email` del destinatario (y nombre/entidad opcional).
+5. Despacho automático si existe autorización previa vigente, o solicitud de confirmación si no existe.
+
+### Ejecución con Parámetros Directos o Datos Sintéticos
+
+```powershell
+# Poblar datos sintéticos de demostración y analizar el período
+& "backend/.venv/Scripts/python.exe" -m backend.reporting.agent.cli `
+    --seed-synthetic `
+    --start-date "15/01/2026" `
+    --end-date "15/02/2026" `
+    --recipient-email "seguridad@empresa.com" `
+    --recipient-entity "Fiscalía General de la Nación"
+```
+
+### Comandos de Administración de Autorizaciones
+
+```powershell
+# Conceder autorización para un dominio o correo (con rol de administrador)
+& "backend/.venv/Scripts/python.exe" -m backend.reporting.agent.cli --as-admin --grant-auth "policia.gov.co"
+
+# Revocar autorización permanentemente
+& "backend/.venv/Scripts/python.exe" -m backend.reporting.agent.cli --revoke-auth "policia.gov.co"
+```
+
+### Ejecución de Pruebas Automatizadas
+
+```powershell
+# Ejecutar suite completa (67 pruebas unitarias y de integración)
+& "backend/.venv/Scripts/python.exe" -m unittest discover -s backend/reporting/tests -v
+```
+
+Consulta los detalles técnicos, proveedores OAuth 2.0 y modelos de persistencia en [docs/agent_architecture.md](docs/agent_architecture.md).
