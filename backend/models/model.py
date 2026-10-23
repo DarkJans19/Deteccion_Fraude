@@ -1,21 +1,21 @@
 """
-Módulo ``core.model``
-=====================
+Módulo ``backend.models.model``
+==============================
 
-Encapsula el modelo de lenguaje afinado (Qwen2.5-1.5B-Instruct + LoRA fusionado,
-exportado a GGUF) y lo expone como una clase lista para usar desde la API.
+Combina el modelo de mensajes Qwen2.5-1.5B-Instruct (GGUF) con el analizador
+de URLs para los enlaces detectados mediante expresiones regulares.
 
 El modelo fue entrenado para una tarea binaria: dado un mensaje de texto, responder
 con un veredicto que empieza por "RIESGO ALTO." (fraude, phishing o spam) o
-"RIESGO BAJO." (comunicación legítima). La categoría concreta del fraude NO la
-decide este módulo; eso lo hace ``core.fraud_validator``.
+"RIESGO BAJO." (comunicación legítima). Si hay enlaces, el veredicto final
+se calcula con ``MATRIZ_RIESGO``; sin enlaces se conserva el resultado de Qwen.
 
 Uso rápido
 ----------
->>> from core.model import get_model
+>>> from backend.models.model import get_model
 >>> modelo = get_model()
->>> modelo.predecir("Tu cuenta fue bloqueada, ingresa a bit.ly/abc123")
-Prediccion(es_fraude=True, veredicto='RIESGO ALTO', respuesta_cruda='RIESGO ALTO. ...')
+>>> prediccion = modelo.predecir("Tu cuenta fue bloqueada, ingresa a bit.ly/abc123")
+>>> print(prediccion.veredicto)
 
 Dependencias
 ------------
@@ -24,11 +24,22 @@ Dependencias
 
 import asyncio
 import os
+import re
 import threading
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
+# Permite también ejecutar este archivo directamente desde el IDE.
+if __name__ == "__main__" and not __package__:
+    import sys
+
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
 from llama_cpp import Llama
+
+from backend.url_analysis.layered import analyze as analyze_url
+from backend.url_analysis.preprocessing import normalize_url
+from backend.url_analysis.safe_browsing import SafeBrowsingClient
 
 # --------------------------------------------------------------------------- #
 # Configuración
@@ -43,6 +54,14 @@ MODEL_PATH = Path(
     )
 )
 
+#: Directorio del detector de URLs existente, configurable con ``URL_MODEL_DIR``.
+URL_MODEL_DIR = Path(
+    os.getenv(
+        "URL_MODEL_DIR",
+        Path(__file__).resolve().parents[1] / "url_analysis" / "artifacts" / "url_detector",
+    )
+)
+
 #: Prompt de sistema. Debe ser idéntico al que ``tokenizer.apply_chat_template``
 #: de Qwen añadió automáticamente durante el entrenamiento. Si se cambia, el
 #: modelo puede dejar de responder con el formato "RIESGO ALTO/BAJO".
@@ -53,8 +72,52 @@ SYSTEM_PROMPT = "You are Qwen, created by Alibaba Cloud. You are a helpful assis
 #: equivalen aproximadamente a ese límite.
 MAX_CHARS = 1500
 
-#: Frase que el modelo emite cuando clasifica un mensaje como fraude.
-MARCADOR_FRAUDE = "RIESGO ALTO"
+RIESGO_ALTO = "RIESGO ALTO"
+RIESGO_BAJO = "RIESGO BAJO"
+RIESGO_NO_CONCLUYENTE = "RIESGO NO CONCLUYENTE"
+
+#: Frase que Qwen emite cuando clasifica un mensaje como fraude.
+MARCADOR_FRAUDE = RIESGO_ALTO
+
+#: Claves: (riesgo del mensaje, riesgo agregado de los enlaces).
+MATRIZ_RIESGO = {
+    (RIESGO_ALTO, RIESGO_ALTO): RIESGO_ALTO,
+    (RIESGO_ALTO, RIESGO_BAJO): RIESGO_NO_CONCLUYENTE,
+    (RIESGO_ALTO, RIESGO_NO_CONCLUYENTE): RIESGO_ALTO,
+    (RIESGO_BAJO, RIESGO_ALTO): RIESGO_ALTO,
+    (RIESGO_BAJO, RIESGO_BAJO): RIESGO_BAJO,
+    (RIESGO_BAJO, RIESGO_NO_CONCLUYENTE): RIESGO_NO_CONCLUYENTE,
+}
+
+#: Incluye HTTP(S), www y dominios sin esquema, como bit.ly/abc123.
+#: El límite izquierdo evita extraer dominios de direcciones de correo.
+URL_PATTERN = re.compile(
+    r"(?<![\w@./-])(?:https?://[^\s<>\"'`“”‘’]+|"
+    r"(?:[^\W_](?:[\w-]{0,61}[^\W_])?\.)+"
+    r"(?:xn--[a-z0-9-]+|[^\W\d_]{2,63})(?![\w@-])"
+    r"(?::\d{1,5})?(?:[/?#][^\s<>\"'`“”‘’]*)?)",
+    re.IGNORECASE,
+)
+
+
+def extraer_urls(texto: str) -> list[str]:
+    """Extrae enlaces únicos del texto completo sin incluir puntuación externa."""
+    urls = []
+    vistas = set()
+    for coincidencia in URL_PATTERN.finditer(texto):
+        url = coincidencia.group().rstrip(".,;:!?")
+        # Conserva paréntesis de la ruta y quita cierres del texto o Markdown.
+        while url and url[-1] in ")]}":
+            cierre = url[-1]
+            apertura = {")": "(", "]": "[", "}": "{"}[cierre]
+            if url.count(cierre) <= url.count(apertura):
+                break
+            url = url[:-1].rstrip(".,;:!?")
+        clave = normalize_url(url) or url
+        if clave not in vistas:
+            vistas.add(clave)
+            urls.append(url)
+    return urls
 
 
 # --------------------------------------------------------------------------- #
@@ -63,18 +126,26 @@ MARCADOR_FRAUDE = "RIESGO ALTO"
 
 @dataclass
 class Prediccion:
-    """Resultado de analizar un texto con el modelo.
+    """Resultado combinado del mensaje y sus enlaces.
 
     Attributes:
-        es_fraude: ``True`` si el modelo clasificó el texto como fraude.
-        veredicto: Etiqueta normalizada, ``"RIESGO ALTO"`` o ``"RIESGO BAJO"``.
-        respuesta_cruda: Texto exacto que generó el modelo, útil para depurar
-            o para mostrar la explicación completa al usuario.
+        es_fraude: ``True`` para riesgo alto, ``False`` para riesgo bajo y
+            ``None`` para un resultado no concluyente.
+        veredicto: ``"RIESGO ALTO"``, ``"RIESGO BAJO"`` o
+            ``"RIESGO NO CONCLUYENTE"`` según ambos análisis.
+        respuesta_cruda: Texto exacto que generó Qwen, o una cadena vacía si
+            la entrada solo contiene enlaces.
+        veredicto_mensaje: Clasificación de Qwen, o ``None`` si solo hay enlaces.
+        veredicto_url: Riesgo agregado de los enlaces, o ``None`` si no hay URLs.
+        analisis_urls: Resultados del detector existente para cada enlace.
     """
 
-    es_fraude: bool
+    es_fraude: bool | None
     veredicto: str
     respuesta_cruda: str
+    veredicto_mensaje: str | None = None
+    veredicto_url: str | None = None
+    analisis_urls: list[dict[str, object]] = field(default_factory=list)
 
 
 # --------------------------------------------------------------------------- #
@@ -82,7 +153,7 @@ class Prediccion:
 # --------------------------------------------------------------------------- #
 
 class FraudModel:
-    """Envoltorio del modelo GGUF para detección de fraude.
+    """Analizador de fraude que combina Qwen con el detector de URLs.
 
     La clase carga el modelo de forma perezosa (solo cuando se necesita) y es
     segura entre hilos: una instancia de ``Llama`` no admite inferencias
@@ -97,6 +168,7 @@ class FraudModel:
             prompt de sistema, el texto del usuario y la respuesta generada.
         n_threads: Hilos de CPU para la inferencia. Por defecto, todos los
             núcleos disponibles.
+        url_model_dir: Directorio de los modelos entrenados de URLs.
     """
 
     def __init__(
@@ -104,10 +176,14 @@ class FraudModel:
         ruta: Path = MODEL_PATH,
         n_ctx: int = 2048,
         n_threads: int | None = None,
+        *,
+        url_model_dir: Path = URL_MODEL_DIR,
     ):
         self.ruta = Path(ruta)
         self.n_ctx = n_ctx
         self.n_threads = n_threads or os.cpu_count() or 4
+        self.url_model_dir = Path(url_model_dir)
+        self._safe_browsing_client = SafeBrowsingClient.from_environment()
         self._llm: Llama | None = None
         self._lock = threading.Lock()
 
@@ -179,11 +255,14 @@ class FraudModel:
         return salida["choices"][0]["message"]["content"].strip()
 
     def predecir(self, texto: str) -> Prediccion:
-        """Analiza un texto y devuelve un veredicto estructurado.
+        """Analiza el mensaje con Qwen y cada URL con el detector existente.
 
-        El texto se considera fraude si la respuesta del modelo contiene
-        "RIESGO ALTO" (sin distinguir mayúsculas). Cualquier otra respuesta
-        se trata como "RIESGO BAJO".
+        Si un enlace tiene riesgo alto, el riesgo agregado de URLs es alto.
+        Si ninguno es alto pero alguno requiere revisión o falla al analizarse,
+        el riesgo de URLs es no concluyente. Solo es bajo si todos son bajos.
+        Después se aplica ``MATRIZ_RIESGO`` con el resultado del mensaje.
+        Sin URLs se conserva la clasificación de Qwen.
+        Si solo hay enlaces, se omite Qwen y se usa el riesgo de URLs.
 
         Args:
             texto: Mensaje a analizar.
@@ -191,12 +270,54 @@ class FraudModel:
         Returns:
             Un objeto ``Prediccion`` con el veredicto y la respuesta cruda.
         """
-        crudo = self.generar(texto)
-        fraude = MARCADOR_FRAUDE in crudo.upper()
+        urls = extraer_urls(texto)
+        texto_sin_urls = URL_PATTERN.sub("", texto)
+        solo_urls = bool(urls) and not texto_sin_urls.strip(
+            " \t\r\n.,;:!?()[]{}<>\"'`“”‘’"
+        )
+        crudo = ""
+        veredicto_mensaje = None
+        if not solo_urls:
+            crudo = self.generar(texto)
+            veredicto_mensaje = RIESGO_ALTO if MARCADOR_FRAUDE in crudo.upper() else RIESGO_BAJO
+        analisis_urls = []
+        for url in urls:
+            try:
+                resultado = analyze_url(
+                    url,
+                    self.url_model_dir,
+                    safe_browsing_client=self._safe_browsing_client,
+                )
+            except (OSError, ValueError, RuntimeError) as error:
+                resultado = {
+                    "url": url,
+                    "risk_level": "review",
+                    "error": str(error),
+                }
+            analisis_urls.append(resultado)
+
+        veredicto_url = None
+        veredicto = veredicto_mensaje
+        if analisis_urls:
+            riesgos = {resultado.get("risk_level") for resultado in analisis_urls}
+            if "high" in riesgos:
+                veredicto_url = RIESGO_ALTO
+            elif riesgos == {"low"}:
+                veredicto_url = RIESGO_BAJO
+            else:
+                veredicto_url = RIESGO_NO_CONCLUYENTE
+            veredicto = (
+                veredicto_url if solo_urls
+                else MATRIZ_RIESGO[veredicto_mensaje, veredicto_url]
+            )
+
         return Prediccion(
-            es_fraude=fraude,
-            veredicto="RIESGO ALTO" if fraude else "RIESGO BAJO",
+            es_fraude=None if veredicto == RIESGO_NO_CONCLUYENTE else veredicto == RIESGO_ALTO,
+            veredicto=veredicto,
             respuesta_cruda=crudo,
+            veredicto_mensaje=veredicto_mensaje,
+            veredicto_url=veredicto_url,
+            analisis_urls=analisis_urls,
         )
 
     async def predecir_async(self, texto: str) -> Prediccion:
@@ -251,12 +372,12 @@ if __name__ == "__main__":
     print(f"Carga: {time.perf_counter() - t0:.1f} s | cargado: {modelo.cargado}")
 
     casos = [
-        ("Bancolombia: tu cuenta fue bloqueada, ingresa a bit.ly/abc123", True),
-        ("Hola mamá, cambié de número, guárdalo y envíame $200.000", True),
-        ("Te confirmo la reunión de mañana a las 3 pm en la oficina.", False),
+        "Bancolombia: tu cuenta fue bloqueada, ingresa a bit.ly/abc123",
+        "Hola mamá, cambié de número, guárdalo y envíame $200.000",
+        "Te confirmo la reunión de mañana a las 3 pm en la oficina.",
+        "🎉 Nequi está dando $600.000 de saldo por su Aniversario Yo ya recibí mi saldo de $600.000 😳 Revisa si tú también puedes reclamarlo Haz clic aquí 👇 https://adza.fmhgl.xyz/cHg7iSuvm/f762ee4e6494cd6c94c82dd8bb?p=w"
     ]
-    for texto, esperado in casos:
+    for texto in casos:
         t0 = time.perf_counter()
         p = modelo.predecir(texto)
-        marca = "OK " if p.es_fraude == esperado else "MAL"
-        print(f"[{marca}] {p.veredicto:11} {time.perf_counter() - t0:.1f}s | {texto[:45]}")
+        print(f"{p.veredicto:22} {time.perf_counter() - t0:.1f}s | {texto[:45]}")
