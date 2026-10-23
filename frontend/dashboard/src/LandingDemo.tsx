@@ -22,10 +22,9 @@ import {
   Info,
 } from "lucide-react";
 import MoonChatComposer from "@/components/ui/ruixen-moon-chat";
-import RadialGlowBackground from "@/components/ui/background-gradient-snippet";
+import RadialGlowBackground from "@/components/ui/radial-glow-background";
+import AboutPage from "./AboutPage";
 import "./LandingDemo.css";
-import TextBlockAnimation from "@/components/ui/text-block-animation";
-
 
 // Reutiliza el dashboard actual y lo carga al abrir Informes.
 const Dashboard = lazy(() => import("./App"));
@@ -48,7 +47,7 @@ const scenarios: Record<Scenario, { title: string; text: string; advice: string 
   alto: {
     title: "Riesgo alto",
     text: "Ejemplo de una alerta que el detector podría mostrar ante señales de suplantación.",
-    advice: "Evita abrir el enlace o compartir códigos. Confirma la solicitud por un canal oficial.",
+    advice: "No abras el enlace ni compartas códigos o claves. Confirma por un canal oficial y repórtalo en el CAI Virtual de la Policía Nacional o ante la Fiscalía.",
   },
   bajo: {
     title: "Riesgo bajo",
@@ -62,13 +61,13 @@ const suggestions = [
     icon: Link2,
     title: "Revisar un enlace",
     description: "Comprende qué revisar antes de abrirlo.",
-    prompt: "Quiero revisar este enlace: https://ejemplo.invalid/verificar",
+    prompt: "Me llegó un enlace de un supuesto subsidio para comerciantes de Bosa, quiero revisarlo: https://ejemplo.invalid/verificar",
   },
   {
     icon: MessageSquare,
     title: "Consultar un mensaje",
     description: "Pega un SMS, correo o mensaje de WhatsApp.",
-    prompt: "Recibí este mensaje y quiero revisarlo: ",
+    prompt: "Recibí este mensaje en un grupo de WhatsApp de mi barrio en Bosa y quiero revisarlo: ",
   },
 ];
 
@@ -77,7 +76,6 @@ function readView(): View {
   if (window.location.hash === "#/proyecto") return "about";
   return "chat";
 }
-
 
 function newConversation(): Conversation {
   return { id: crypto.randomUUID(), title: "Nueva consulta", turns: [] };
@@ -171,7 +169,10 @@ export default function LandingDemo() {
   async function copy(turn: Turn) {
     try {
       await navigator.clipboard.writeText(
-        `RESULTADO SIMULADO: ${scenarios[turn.scenario].title}\n${scenarios[turn.scenario].text}\n${scenarios[turn.scenario].advice}\nEl contenido no fue evaluado por un detector.`,
+        `RESULTADO SIMULADO: ${scenarios[turn.scenario].title}
+${scenarios[turn.scenario].text}
+${scenarios[turn.scenario].advice}
+El contenido no fue evaluado por un detector.`,
       );
       setCopied(turn.id);
       setCopyError("");
@@ -260,33 +261,8 @@ export default function LandingDemo() {
               <Dashboard />
             </Suspense>
           </main>
-           ) : view === "about" ? (
-          <main id="af-content" tabIndex={-1} className="af-about">
-            <div className="af-about-intro">
-              <span className="af-eyebrow">SOBRE EL PROYECTO</span>
-              <a href="#/chat">Volver al chat <ArrowRight size={15} aria-hidden="true" /></a>
-            </div>
-            <div className="af-about-body">
-              <TextBlockAnimation blockColor="#8b7cf8" animateOnScroll={false} duration={0.7}>
-                <h1>Alerta Bosa</h1>
-              </TextBlockAnimation>
-              <TextBlockAnimation blockColor="#404040" delay={0.15} duration={0.6}>
-                <p>
-                  Alerta Bosa es un asistente de prevención de fraude digital pensado para los
-                  comercios y familias de la localidad de Bosa. Ayuda a revisar mensajes, enlaces
-                  y llamadas sospechosas de phishing, SIM swapping o suplantación de entidades
-                  financieras antes de tomar una decisión.
-                </p>
-              </TextBlockAnimation>
-              <TextBlockAnimation blockColor="#404040" delay={0.25} duration={0.6}>
-                <p>
-                  Cada reporte queda registrado de forma trazable y se visualiza de manera
-                  agregada y anónima en el panel de Informes, priorizando la localidad de Bosa
-                  sin perder de vista el resto de Bogotá.
-                </p>
-              </TextBlockAnimation>
-            </div>
-          </main>
+        ) : view === "about" ? (
+          <AboutPage />
         ) : (
           <main id="af-content" tabIndex={-1} className="af-chat">
             <div className="af-chat-heading"><span><span className="af-status-dot" /> Asistente de prevención</span>
@@ -296,7 +272,7 @@ export default function LandingDemo() {
               {!active.turns.length ? (
                 <section className="af-welcome">
                   <h1>Tu tranquilidad empieza<br />con una <em>buena pregunta.</em></h1>
-                  <p className="af-welcome-description">Un espacio para revisar lo que recibes y tomar decisiones con más información.</p>
+                  <p className="af-welcome-description">Hecho para los comercios y familias de Bosa: revisa mensajes, enlaces y llamadas sospechosas antes de pagar, responder o compartir un código.</p>
                 </section>
               ) : (
                 <section className="af-conversation" aria-label="Conversación">
@@ -334,6 +310,7 @@ export default function LandingDemo() {
                     <Icon size={16} aria-hidden="true" /><span>{title}</span>
                   </button>
                 ))}
+                <a href="#/proyecto"><Info size={16} aria-hidden="true" /> ¿Qué es Alerta Bosa?</a>
                 <a href="#/informes"><BarChart3 size={16} aria-hidden="true" /> Ver informes</a>
                 <button type="button" disabled={busy} onClick={startNew}>
                   <Plus size={16} aria-hidden="true" /> Nueva consulta

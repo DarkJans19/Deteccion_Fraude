@@ -1,0 +1,59 @@
+/* Página "Proyecto": paleta azul noche + naranja del fondo del chat. */
+.af-about {
+  --ab-navy: #020617;
+  --ab-blue: #3b82f6;
+  --ab-blue-soft: #93c5fd;
+  --ab-orange: #f97316;
+  --ab-orange-soft: #fdba74;
+  --ab-text: #f8fafc;
+  --ab-body: #cbd5e1;
+  --ab-muted: #94a3b8;
+  --ab-border: #1e293b;
+  color: var(--ab-text);
+}
+.af-about h1, .af-about h2, .af-about h3, .af-about p { margin: 0; }
+
+/* 1. Portada */
+.af-about-hero { position: relative; min-height: calc(100dvh - 80px); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 48px 24px 140px; }
+.af-about-hero-inner { width: 100%; max-width: 896px; }
+.af-about-eyebrow { display: inline-block; margin-bottom: 20px; color: var(--ab-orange-soft); font-size: 11px; font-weight: 600; letter-spacing: 2px; }
+.af-about-hero h1 { font-size: clamp(44px, 9vw, 96px); line-height: 1.05; font-weight: 900; letter-spacing: -0.04em; color: var(--ab-text); }
+.af-about-highlight { display: inline-block; margin-top: 8px; padding: 0 14px 6px; border-radius: 6px; background: var(--ab-orange); color: var(--ab-navy); }
+.af-about .af-about-lead { max-width: 620px; margin-top: 28px; font-size: 18px; line-height: 1.7; color: var(--ab-body); }
+.af-about-scroll { position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 8px; color: var(--ab-muted); opacity: .7; }
+.af-about-scroll span { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; white-space: nowrap; }
+.af-about-scroll svg { animation: af-about-bounce 1s infinite; }
+@keyframes af-about-bounce {
+  0%, 100% { transform: translateY(-25%); animation-timing-function: cubic-bezier(.8, 0, 1, 1); }
+  50% { transform: none; animation-timing-function: cubic-bezier(0, 0, .2, 1); }
+}
+
+/* 2 y 3. Secciones */
+.af-about-section { display: flex; justify-content: center; padding: 96px 24px; background: rgba(15, 23, 42, .6); border-top: 1px solid var(--ab-border); }
+.af-about-section-alt { background: rgba(2, 6, 23, .7); }
+.af-about-section-inner { width: 100%; max-width: 768px; display: flex; flex-direction: column; gap: 48px; }
+.af-about-section h2 { font-size: clamp(30px, 5vw, 48px); line-height: 1.15; font-weight: 700; }
+.af-about-section p { font-size: clamp(17px, 2.2vw, 22px); line-height: 1.7; color: var(--ab-body); }
+.af-about-section strong { color: var(--ab-orange-soft); font-weight: 600; }
+.af-about-quote { padding-left: 24px; border-left: 2px solid var(--ab-orange); }
+.af-about-quote p { font-size: 18px; font-style: italic; color: var(--ab-muted); }
+.af-about-quote-source { display: block; margin-top: 10px; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--ab-blue-soft); }
+.af-about-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 16px; }
+.af-about-step { display: flex; align-items: flex-start; gap: 20px; padding: 20px 22px; border: 1px solid var(--ab-border); border-radius: 12px; background: rgba(30, 58, 138, .18); }
+.af-about-step-number { flex-shrink: 0; padding-top: 3px; font-size: 13px; font-weight: 700; letter-spacing: 1px; color: var(--ab-orange); }
+.af-about-step-text { flex: 1; min-width: 0; }
+.af-about-step h3 { margin-bottom: 4px; font-size: 17px; font-weight: 600; color: var(--ab-blue-soft); }
+.af-about-step p { font-size: 15px; line-height: 1.7; }
+
+/* 4. Llamado a la acción */
+.af-about-footer { min-height: 45vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px; padding: 64px 24px; border-top: 1px solid var(--ab-border); text-align: center; }
+.af-app a.af-about-cta { font-size: clamp(40px, 8vw, 80px); font-weight: 900; letter-spacing: -0.03em; color: var(--ab-text); }
+.af-app a.af-about-cta:hover { color: var(--ab-orange); }
+.af-about-footnote { font-size: 12px; color: var(--ab-muted); }
+
+@media (max-width: 640px) {
+  .af-about-hero { min-height: calc(100dvh - 72px); padding-bottom: 120px; }
+  .af-about .af-about-lead { font-size: 16px; }
+  .af-about-section { padding: 64px 20px; }
+  .af-about-step { gap: 14px; padding: 16px; }
+}
