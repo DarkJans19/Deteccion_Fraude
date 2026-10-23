@@ -198,13 +198,29 @@ La API usa `backend/models/model.py` y está implementada en
 .venv/bin/python -m uvicorn backend.api.main:app --host 127.0.0.1 --port 8000
 ```
 
-La aplicación expone estos endpoints:
+La aplicación ofrece estos endpoints:
 
 | Método | Ruta | Método del modelo |
 | --- | --- | --- |
 | POST | `/api/analizar` | `predecir_async(texto)`, que ejecuta `predecir` en otro hilo |
 | POST | `/api/analizar-imagen` | OCR y QR de una imagen, y luego `predecir_async(texto)` |
 | POST | `/api/respuesta` | `generar(texto, max_tokens)` |
+| POST | `/api/analizar-imagen` | Tesseract OCR y luego `predecir_async(texto_extraido)` |
+| POST | `/api/analyze` | Análisis QR con `backend.qr_analysis.service.analyze_qr_url` |
+| GET | `/api/health` | Estado del detector, Safe Browsing y redirecciones |
+
+La interfaz del lector QR se sirve en `/`: decodifica imágenes y cámara en el
+navegador, y envía la URL detectada a `/api/analyze`.
+
+El endpoint QR recibe `{ "url": "https://ejemplo.com" }` y devuelve la URL
+escaneada, el destino final, las redirecciones, los análisis inicial y final,
+la coincidencia con dominios oficiales y un resumen del riesgo:
+
+```bash
+curl -sS http://127.0.0.1:8000/api/analyze \
+  -H 'Content-Type: application/json' \
+  --data '{"url":"https://ejemplo.com"}'
+```
 
 ```bash
 curl -sS http://127.0.0.1:8000/api/analizar \
@@ -217,13 +233,6 @@ La predicción devuelve todos los campos de `Prediccion`: `es_fraude`,
 `analisis_urls`. Los resultados no concluyentes conservan `es_fraude: null`.
 `/api/respuesta` recibe `texto` y, opcionalmente, `max_tokens` (60 por defecto,
 entre 1 y 512); devuelve `respuesta_cruda`.
-
-`/api/analizar-imagen` recibe un `multipart/form-data` con el campo `imagen` y,
-opcionalmente, `texto` como pie de foto. Extrae texto con Tesseract, decodifica
-códigos QR con OpenCV y analiza la combinación con el mismo modelo. Devuelve la
-predicción completa más `texto_extraido`, `qr_detectados` y `advertencias`. Si
-no hay Tesseract u OpenCV, la API sigue funcionando y reporta la limitación en
-`advertencias`; una imagen sin texto ni QR devuelve 422.
 
 La API carga el `.env` de la raíz antes de importar el modelo; las variables
 del proceso tienen prioridad. Usa `MODEL_PATH` para cambiar el GGUF, y
@@ -263,11 +272,14 @@ El lector decodifica el QR en el navegador, analiza la URL y revisa sus
 redirecciones sin abrir automáticamente el destino:
 
 ```powershell
-.venv\Scripts\python.exe -m backend.qr_analysis.server
+.venv\Scripts\python.exe -m uvicorn backend.api.main:app --host 127.0.0.1 --port 8000
 ```
 
-Requiere que exista el modelo entrenado del módulo de URLs. Consulta las
-[opciones y límites de seguridad](backend/qr_analysis/README.md).
+Abre `http://127.0.0.1:8000` para usar el lector y `/api/analyze` para enviarle
+una URL QR. El endpoint reutiliza el análisis de URLs, Safe Browsing, la
+resolución segura de redirecciones y la comprobación de dominios oficiales.
+Para omitir solicitudes de red al resolver redirecciones, define
+`QR_CHECK_REDIRECTS=false`. Consulta las [opciones y límites de seguridad](backend/qr_analysis/README.md).
 
 ## Mensajes y Telegram
 

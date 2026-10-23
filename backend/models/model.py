@@ -196,6 +196,11 @@ class FraudModel:
         """Indica si el modelo ya está cargado en memoria."""
         return self._llm is not None
 
+    @property
+    def safe_browsing_client(self) -> SafeBrowsingClient | None:
+        """Cliente opcional compartido para comprobar la reputación de URLs."""
+        return self._safe_browsing_client
+
     def cargar(self) -> None:
         """Carga el modelo en memoria si aún no lo está.
 

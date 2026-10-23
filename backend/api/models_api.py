@@ -4,16 +4,27 @@ Inicio desde la raíz: python -m uvicorn backend.api.main:app --port 8000
 """
 
 from contextlib import asynccontextmanager
+<<<<<<< HEAD
 from dataclasses import asdict
+=======
+import os
+import threading
+>>>>>>> 3edb293 (feat: OCR support)
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
 from dotenv import load_dotenv
+<<<<<<< HEAD
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+=======
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile
+>>>>>>> 3edb293 (feat: OCR support)
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 from starlette.concurrency import run_in_threadpool
 
+<<<<<<< HEAD
 from backend.api.media_analysis import (
     ImageAnalysisError,
     compose_analysis_text,
@@ -21,8 +32,21 @@ from backend.api.media_analysis import (
     max_image_bytes,
 )
 
+=======
+from backend.api.image_ocr import (
+    MAX_IMAGE_BYTES,
+    ImageTooLargeError,
+    InvalidImageError,
+    OCRProcessingError,
+    OCRTimeoutError,
+    OCRUnavailableError,
+    UnsupportedImageFormatError,
+    extraer_texto_imagen,
+)
+>>>>>>> 3edb293 (feat: OCR support)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+QR_STATIC_DIR = PROJECT_ROOT / "backend" / "qr_analysis" / "static"
 Riesgo = Literal["RIESGO ALTO", "RIESGO BAJO", "RIESGO NO CONCLUYENTE"]
 
 
@@ -36,6 +60,14 @@ class TextoRequest(BaseModel):
 
 class GeneracionRequest(TextoRequest):
     max_tokens: int = Field(default=60, ge=1, le=512, strict=True)
+
+
+class QRAnalisisRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    url: Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=1, max_length=2048)
+    ] = Field(description="URL HTTP(S) leída del código QR.")
 
 
 class PrediccionResponse(BaseModel):
@@ -57,6 +89,10 @@ class GeneracionResponse(BaseModel):
     respuesta_cruda: str
 
 
+class ImagenAnalisisResponse(PrediccionResponse):
+    texto_extraido: str
+
+
 class ErrorResponse(BaseModel):
     detail: str
 
@@ -73,12 +109,18 @@ def _get_model():
 async def lifespan(app: FastAPI):
     load_dotenv(PROJECT_ROOT / ".env", override=False, interpolate=False)
     app.state.model = await run_in_threadpool(_get_model)
+    app.state.qr_analysis_lock = threading.Lock()
+    app.state.check_qr_redirects = os.getenv(
+        "QR_CHECK_REDIRECTS", "true"
+    ).strip().casefold() not in {"0", "false", "no", "off"}
     yield
 
 
 app = FastAPI(
     title="API de detección de fraude",
-    description="Análisis de mensajes y enlaces con el modelo local de backend.models.model.",
+    description=(
+        "Análisis de mensajes, imágenes y URLs QR con los modelos locales del backend."
+    ),
     version="1.0.0",
     lifespan=lifespan,
     docs_url=None,
@@ -187,3 +229,161 @@ async def enviar_respuesta(payload: GeneracionRequest, request: Request):
         request.app.state.model.generar, payload.texto, max_tokens=payload.max_tokens
     )
     return {"respuesta_cruda": respuesta}
+
+
+@app.middleware("http")
+async def limites_y_cabeceras(request: Request, call_next):
+    """Limita cargas conocidas y conserva las cabeceras del lector QR."""
+    route_limits = {
+        "/api/analyze": (8_192, "La solicitud supera el límite de 8 KB."),
+        "/api/analizar-imagen": (
+            MAX_IMAGE_BYTES + 64 * 1024,
+            "La carga supera el límite de 10 MB.",
+        ),
+    }
+    limit = route_limits.get(request.url.path) if request.method == "POST" else None
+    if limit:
+        content_length = request.headers.get("content-length")
+        if content_length:
+            try:
+                request_bytes = int(content_length)
+            except ValueError:
+                response = JSONResponse(
+                    status_code=400,
+                    content={"detail": "Content-Length inválido."},
+                )
+                return _add_security_headers(response)
+            if request_bytes > limit[0]:
+                response = JSONResponse(
+                    status_code=413,
+                    content={"detail": limit[1]},
+                )
+                return _add_security_headers(response)
+    return _add_security_headers(await call_next(request))
+
+
+def _add_security_headers(response):
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Permissions-Policy"] = "camera=(self)"
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; script-src 'self'; style-src 'self'; "
+        "img-src 'self' blob: data:; media-src 'self' blob:; "
+        "connect-src 'self'; frame-ancestors 'none'; base-uri 'none'"
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@app.post(
+    "/api/analyze",
+    responses={
+        413: {"model": ErrorResponse},
+        422: {"model": ErrorResponse},
+        503: {"model": ErrorResponse},
+    },
+    tags=["Análisis QR"],
+)
+async def analizar_qr(payload: QRAnalisisRequest, request: Request) -> dict[str, Any]:
+    """Analiza la URL de un QR con las mismas capas del lector existente."""
+    from backend.qr_analysis.service import analyze_qr_url
+
+    modelo = request.app.state.model
+
+    def analizar_en_hilo():
+        # El detector TensorFlow y las consultas de red se ejecutan fuera del
+        # event loop; como en el servidor anterior, se serializan los QR.
+        with request.app.state.qr_analysis_lock:
+            return analyze_qr_url(
+                payload.url,
+                modelo.url_model_dir,
+                safe_browsing_client=modelo.safe_browsing_client,
+                check_redirects=request.app.state.check_qr_redirects,
+            )
+
+    try:
+        return await run_in_threadpool(analizar_en_hilo)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    except (OSError, RuntimeError) as error:
+        raise HTTPException(
+            status_code=503,
+            detail="No fue posible completar el análisis de la URL del QR.",
+        ) from error
+
+
+@app.post(
+    "/api/analizar-imagen",
+    response_model=ImagenAnalisisResponse,
+    responses={
+        413: {"model": ErrorResponse},
+        415: {"model": ErrorResponse},
+        422: {"model": ErrorResponse},
+        503: {"model": ErrorResponse},
+        504: {"model": ErrorResponse},
+    },
+    tags=["Análisis"],
+)
+async def analizar_imagen(
+    request: Request,
+    imagen: UploadFile = File(description="Imagen del mensaje que se analizará con OCR."),
+):
+    """Extrae el texto de una imagen y lo analiza con la lógica de `/api/analizar`."""
+    try:
+        contenido = await imagen.read(MAX_IMAGE_BYTES + 1)
+    finally:
+        await imagen.close()
+
+    if len(contenido) > MAX_IMAGE_BYTES:
+        raise HTTPException(status_code=413, detail="La imagen supera el límite de 10 MB.")
+
+    try:
+        texto = await run_in_threadpool(extraer_texto_imagen, contenido)
+    except ImageTooLargeError as error:
+        raise HTTPException(status_code=413, detail=str(error)) from error
+    except UnsupportedImageFormatError as error:
+        raise HTTPException(status_code=415, detail=str(error)) from error
+    except InvalidImageError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    except OCRUnavailableError as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error
+    except OCRTimeoutError as error:
+        raise HTTPException(status_code=504, detail=str(error)) from error
+    except OCRProcessingError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+
+    if not texto:
+        raise HTTPException(status_code=422, detail="No se encontró texto legible en la imagen.")
+    if len(texto) > 50_000:
+        raise HTTPException(
+            status_code=413,
+            detail="El texto reconocido supera el límite de 50.000 caracteres.",
+        )
+
+    resultado = await request.app.state.model.predecir_async(texto)
+    return {
+        "texto_extraido": texto,
+        "es_fraude": resultado.es_fraude,
+        "veredicto": resultado.veredicto,
+        "respuesta_cruda": resultado.respuesta_cruda,
+        "veredicto_mensaje": resultado.veredicto_mensaje,
+        "veredicto_url": resultado.veredicto_url,
+        "analisis_urls": resultado.analisis_urls,
+    }
+
+
+@app.get("/api/health", tags=["Operación"])
+async def health(request: Request) -> dict[str, Any]:
+    """Indica si el servicio y los artefactos del detector de URLs están disponibles."""
+    modelo = request.app.state.model
+    available = modelo.url_model_dir.is_dir()
+    return {
+        "status": "ok" if available else "degraded",
+        "model_available": available,
+        "safe_browsing_configured": modelo.safe_browsing_client is not None,
+        "redirect_checks_enabled": request.app.state.check_qr_redirects,
+    }
+
+
+# Se registra al final para que las rutas /api definidas arriba tengan prioridad.
+app.mount("/", StaticFiles(directory=str(QR_STATIC_DIR), html=True), name="qr-ui")

@@ -43,14 +43,23 @@ COPY --chown=app:app backend/ backend/
 COPY --from=dashboard --chown=app:app /build/dist/ frontend/dashboard/dist/
 USER app
 
-# Analisis de comprobantes/QR y URLs.
-FROM runtime AS qr
+# Runtime compartido por los endpoints que usan el modelo y OCR.
+FROM runtime AS model-api-runtime
+USER root
+RUN apt-get -o Acquire::ForceIPv4=true update \
+    && apt-get install --no-install-recommends --yes \
+        tesseract-ocr tesseract-ocr-eng tesseract-ocr-spa \
+    && rm -rf /var/lib/apt/lists/*
+USER app
+
+# API FastAPI, interfaz QR y análisis de URLs.
+FROM model-api-runtime AS qr
 ENV HOST=0.0.0.0 \
     PORT=8000
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=8).read()"]
-CMD ["python", "-m", "backend.qr_analysis.server", "--host", "0.0.0.0", "--port", "8000", "--no-browser"]
+CMD ["python", "-m", "uvicorn", "backend.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
 
 # Bot opcional, activado mediante el perfil telegram de Compose.
 FROM runtime AS telegram
@@ -77,7 +86,7 @@ USER node
 CMD ["node", "index.js"]
 
 # Etapa predeterminada: API principal y dashboard.
-FROM runtime AS api
+FROM model-api-runtime AS api
 ENV HOST=0.0.0.0 \
     PORT=8765
 EXPOSE 8765

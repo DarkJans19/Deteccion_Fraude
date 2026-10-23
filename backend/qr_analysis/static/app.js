@@ -221,7 +221,10 @@ async function analyze(value) {
       body: JSON.stringify({ url }),
     });
     const data = await response.json();
-    if (!response.ok) throw new Error(data.error || "El servidor rechazó la solicitud.");
+    if (!response.ok) {
+      const detail = typeof data.detail === "string" ? data.detail : data.error;
+      throw new Error(detail || "El servidor rechazó la solicitud.");
+    }
     showResult(data);
   } catch (error) {
     errorMessage.textContent = error.message || "Error inesperado.";
@@ -236,4 +239,3 @@ window.addEventListener("pagehide", stopCamera);
 if (!("BarcodeDetector" in window) && typeof window.jsQR === "function") {
   setScanMessage("Lector compatible activado. La imagen se procesa localmente en este navegador.");
 }
-

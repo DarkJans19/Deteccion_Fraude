@@ -1,9 +1,9 @@
 # Lector y analizador de codigos QR
 
 Aplicacion web local que lee un QR con la camara o desde una imagen, extrae su
-URL y usa `backend.url_analysis` para evaluarla. No navega automaticamente al enlace.
-Tambien sigue hasta cinco redirecciones HTTP para mostrar el destino final y
-analiza nuevamente la URL si termina en otro lugar.
+URL y usa el endpoint FastAPI `/api/analyze` para evaluarla. No navega
+automaticamente al enlace. Tambien sigue hasta cinco redirecciones HTTP para
+mostrar el destino final y analiza nuevamente la URL si termina en otro lugar.
 Ademas, compara el host final con los dominios reportados a la Superfinanciera
 y alerta cuando el nombre parece una variante tipografica de un dominio oficial.
 
@@ -12,7 +12,7 @@ y alerta cuando el nombre parece una variante tipografica de un dominio oficial.
 Desde la raiz del proyecto:
 
 ```powershell
-.venv\Scripts\python.exe -m backend.qr_analysis.server
+.venv\Scripts\python.exe -m uvicorn backend.api.main:app --host 127.0.0.1 --port 8000
 ```
 
 Se abrira `http://127.0.0.1:8000`. La camara funciona en `localhost`. La
@@ -29,15 +29,8 @@ Para usar Google Safe Browsing, define primero
 funcionando y la interfaz muestra que la comprobacion remota no esta
 configurada.
 
-Opciones utiles:
-
-```powershell
-# No abrir el navegador automaticamente
-.venv\Scripts\python.exe -m backend.qr_analysis.server --no-browser
-
-# No conectarse a las URLs para resolver redirecciones
-.venv\Scripts\python.exe -m backend.qr_analysis.server --no-redirects
-```
+Para que el análisis no se conecte a las URLs al resolver redirecciones,
+define `QR_CHECK_REDIRECTS=false` antes de iniciar FastAPI.
 
 La resolucion de redirecciones rechaza credenciales, puertos distintos de 80 y
 443, y destinos locales, privados o no enrutables. Solo consulta cabeceras HTTP
