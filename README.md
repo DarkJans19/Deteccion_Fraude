@@ -15,6 +15,7 @@ backend/
 ├── api/                 # servidor HTTP principal
 ├── geography/           # preparación de mapas de Bogotá
 ├── message_analysis/    # modelo GGUF y datasets de SMS/correos
+├── models/              # análisis combinado de mensajes y enlaces
 ├── payment_receipts/    # lector QR y análisis de comprobantes
 ├── reporting/           # hashing, MongoDB y trazabilidad
 ├── telegram_bot/        # integración con Telegram
@@ -183,6 +184,50 @@ La primera suite usa mongomock para MongoDB. La segunda inicia un `mongod` tempo
 Para navegador, desde `frontend/dashboard`, instala Chromium con `npx playwright install chromium` y ejecuta `npm test`. En Windows, Playwright usa Edge. Las pruebas verifican la vista anterior con SQLite y el contrato del dashboard para documentos MongoDB y seguimiento. Para regenerar la cartografía consulta [el README del dashboard](frontend/dashboard/README.md); las capas preparadas ya se incluyen en la imagen.
 
 Referencias de configuración: [env_file de Compose](https://docs.docker.com/reference/compose-file/services/#env_file), [tipos de fecha de PyMongo](https://www.mongodb.com/docs/languages/python/pymongo-driver/current/data-formats/dates-and-times/) e [índices MongoDB](https://www.mongodb.com/docs/languages/python/pymongo-driver/current/indexes/).
+
+## API FastAPI del modelo de fraude
+
+La API usa `backend/models/model.py` y está implementada en
+`backend/api/inference.py`, con la aplicación `app` expuesta desde
+`backend/api/main.py`. Se inicia desde la raíz del proyecto:
+
+```bash
+.venv/bin/python -m pip install -r requirements.txt
+.venv/bin/python -m uvicorn backend.api.main:app --host 127.0.0.1 --port 8000
+```
+
+La aplicación expone únicamente dos endpoints:
+
+| Método | Ruta | Método del modelo |
+| --- | --- | --- |
+| POST | `/api/analizar` | `predecir_async(texto)`, que ejecuta `predecir` en otro hilo |
+| POST | `/api/respuesta` | `generar(texto, max_tokens)` |
+
+```bash
+curl -sS http://127.0.0.1:8000/api/analizar \
+  -H 'Content-Type: application/json' \
+  --data '{"texto":"Tu cuenta fue bloqueada. Ingresa a https://ejemplo.com/verificar"}'
+```
+
+La predicción devuelve todos los campos de `Prediccion`: `es_fraude`,
+`veredicto`, `respuesta_cruda`, `veredicto_mensaje`, `veredicto_url` y
+`analisis_urls`. Los resultados no concluyentes conservan `es_fraude: null`.
+`/api/respuesta` recibe `texto` y, opcionalmente, `max_tokens` (60 por defecto,
+entre 1 y 512); devuelve `respuesta_cruda`.
+
+La API carga el `.env` de la raíz antes de importar el modelo; las variables
+del proceso tienen prioridad. Usa `MODEL_PATH` para cambiar el GGUF, y
+`URL_MODEL_DIR` para los artefactos del detector de URLs. El archivo GGUF se
+carga al generar una respuesta o al analizar un mensaje que requiera Qwen.
+Los textos vacíos, tipos incorrectos, campos adicionales y textos de más de
+50.000 caracteres devuelven 422. Se entrega el texto completo al analizador
+de enlaces; Qwen conserva su recorte interno de 1.500 caracteres. Un GGUF
+ausente o un error de ejecución del modelo devuelve 503.
+
+Se comparte una instancia del modelo por proceso; usa un solo worker para
+evitar duplicar su memoria. La API del modelo funciona en el puerto 8000 y
+el comando `python -m backend.api.main` conserva el servidor de reportes y
+dashboard del puerto 8765. La nueva API no necesita conexión a MongoDB.
 
 ## Análisis de URLs
 

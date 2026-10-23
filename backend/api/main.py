@@ -1,4 +1,8 @@
-"""Servidor MongoDB del despliegue Docker: python -m backend.api.main."""
+"""Entradas HTTP del backend.
+
+FastAPI del modelo: python -m uvicorn backend.api.main:app --port 8000
+Servidor de reportes MongoDB: python -m backend.api.main
+"""
 
 import argparse
 import os
@@ -9,6 +13,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from pymongo.errors import PyMongoError
 
+from backend.api.models_api import app
 from backend.reporting.hasher import IntegrityError, ReportServer, StorageError
 from backend.reporting.mongo import MongoReports, client_from_environment, environment_config
 
